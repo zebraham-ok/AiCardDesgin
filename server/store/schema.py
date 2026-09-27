@@ -1,0 +1,220 @@
+"""唯一 schema 定义源（Pydantic v2）。
+
+约定：
+  * 模板/卡牌/项目都持久化成我们自己的 schema，**不持久化 Fabric JSON**
+  * 坐标一律用「设计像素」（与 canvas.w/h 同坐标系），不存百分比
+  * 图片资源一律用 asset:// 内部 URI，绝不存绝对路径
+"""
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
+
+from pydantic import BaseModel, Field
+
+
+def new_id(prefix: str) -> str:
+    import uuid
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+# --------------------------------------------------------------------------
+# 画布 / 图层 / 字段
+# --------------------------------------------------------------------------
+class CanvasSpec(BaseModel):
+    w: int = 745
+    h: int = 1040
+    dpi: int = 300
+    bleed: int = 36
+    w_mm: float = 63
+    h_mm: float = 88
+
+
+class StyleSpec(BaseModel):
+    """文本样式。autoShrink 开启后按 min/max 字号二分缩放。"""
+    fontFamily: str = "sans-serif"
+    fontSize: int = 32
+    weight: int = 400
+    color: str = "#1a1a1a"
+    align: Literal["left", "center", "right"] = "left"
+    valign: Literal["top", "middle", "bottom"] = "top"
+    vertical: bool = False            # 竖排（竖右）
+    lineHeight: float = 1.2
+    letterSpacing: float = 0
+    autoShrink: bool = True
+    minFontSize: int = 16
+    stroke: Optional[str] = None
+    strokeWidth: int = 0
+    shadow: bool = False
+
+
+class Layer(BaseModel):
+    """模板里固定不变的图形底衬（rect / image / text / line）。"""
+    id: str = Field(default_factory=lambda: new_id("ly"))
+    type: Literal["rect", "image", "text"] = "rect"
+    name: str = "图层"
+    locked: bool = True
+    visible: bool = True
+    rect: List[float] = [0, 0, 100, 100]   # [x, y, w, h]
+    fill: Optional[str] = None
+    stroke: Optional[str] = None
+    strokeWidth: int = 0
+    radius: int = 0
+    opacity: float = 1.0
+    assetId: Optional[str] = None           # type=image 时
+    text: Optional[str] = None              # type=text 时
+    style: Optional[StyleSpec] = None
+    # 隐形定位框：不参与卡牌渲染，只在模板编辑器里以虚线占位显示。
+    # 用于 AI 底板生成流程（先画区域框 → 出底板 → 区域框转为定位框）。
+    guide: bool = False
+
+
+class Constraint(BaseModel):
+    type: Literal["int", "float", "string", "enum", "bool"] = "string"
+    min: Optional[float] = None
+    max: Optional[float] = None
+    maxLen: Optional[int] = None
+    options: List[str] = []
+    default: Any = None
+
+
+class FieldDef(BaseModel):
+    """字段 = 可随卡牌变化的东西。binding 决定卡牌侧能否编辑。"""
+    id: str = Field(default_factory=lambda: new_id("fd"))
+    key: str                                # 唯一 key，导入映射靠它
+    label: str
+    kind: Literal["text", "textarea", "number", "enum", "image", "icon"] = "text"
+    binding: Literal["editable", "fixed"] = "editable"
+    rect: List[float] = [0, 0, 100, 40]
+    style: StyleSpec = Field(default_factory=StyleSpec)
+    constraint: Constraint = Field(default_factory=Constraint)
+    fit: Literal["cover", "contain"] = "cover"
+    radius: int = 0
+    value: Any = None                       # binding=fixed 时的固定值
+    iconLibrary: Optional[str] = None       # kind=icon 时限定的子库
+    order: int = 0
+    # 隐形定位框：卡牌与导出都不渲染，只在模板编辑器里显示虚线占位（AI 底板流程用）
+    guide: bool = False
+
+
+class BaseplateMeta(BaseModel):
+    """底板 AI 生成溯源（M4 使用；M0-M3 阶段可为空）。"""
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    prompt: Optional[str] = None
+    negativePrompt: Optional[str] = None
+    seed: Optional[int] = None
+    size: Optional[str] = None
+    refImageHash: Optional[str] = None
+    requestId: Optional[str] = None
+    createdAt: Optional[str] = None
+
+
+class Template(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("tpl"))
+    projectId: str = ""
+    name: str = "新模板"
+    description: str = ""
+    version: int = 1
+    canvas: CanvasSpec = Field(default_factory=CanvasSpec)
+    background: Dict[str, Any] = {}         # {assetId, fit, color}
+    layers: List[Layer] = []
+    fields: List[FieldDef] = []
+    baseplate: Optional[BaseplateMeta] = None
+    createdAt: str = Field(default_factory=now_iso)
+    updatedAt: str = Field(default_factory=now_iso)
+
+
+class Card(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("card"))
+    projectId: str = ""
+    templateId: str = ""
+    name: str = "新卡牌"
+    fields: Dict[str, Any] = {}
+    overrides: Dict[str, Any] = {}
+    tags: List[str] = []
+    version: int = 1
+    createdAt: str = Field(default_factory=now_iso)
+    updatedAt: str = Field(default_factory=now_iso)
+
+
+class Faction(BaseModel):
+    """派系 / 阵营：生图时用来做同系列卡图的色彩与气质抓手。"""
+    name: str = ""
+    desc: str = ""
+    color: str = "#8a8f98"          # 代表色（hex），生图时作为主色提示
+
+
+class ArtStyle(BaseModel):
+    """整体美术风格。AI 提示词的「风格块 / 氛围块 / 配色块」就取自这里。"""
+    style: str = ""                 # 主风格，如「厚涂数字绘画」
+    palette: List[str] = []         # 主色板 3-6 个 hex
+    mood: List[str] = []            # 氛围词，如 ["史诗", "冷峻"]
+    references: List[str] = []      # 参考作品，如 ["《沙丘》电影美术"]
+    details: str = ""               # 细节补充（自由文本，直接进提示词）
+
+
+class ProjectBrief(BaseModel):
+    """创作简报（§4.4）：UI 表单 + AI 提示词语料层 + 项目包内容的三方共同数据源。
+
+    全部字段可选；缺省时 AI 侧只是少几个语料块，不报错。
+    """
+    title: str = ""
+    subtitle: str = ""
+    oneLiner: str = ""              # 一句话卖点（首页卡片也用它）
+    synopsis: str = ""              # 简介 / 世界观（≤200 字）
+    players: str = ""
+    playTime: str = ""
+    age: str = ""
+    genre: List[str] = []
+    keywords: List[str] = []        # ★ 生图 / 文案的核心语料
+    artStyle: ArtStyle = Field(default_factory=ArtStyle)
+    factions: List[Faction] = []
+    taboos: List[str] = []          # ★ 直接进生图 negative_prompt
+    updatedAt: Optional[str] = None
+
+
+class ProjectSettings(BaseModel):
+    defaultCard: Dict[str, Any] = Field(
+        default_factory=lambda: {"w": 745, "h": 1040, "dpi": 300, "bleed": 36,
+                                 "w_mm": 63, "h_mm": 88})
+
+
+class Project(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("p"))
+    name: str = "新项目"
+    description: str = ""
+    tags: List[str] = []
+    cover: Optional[str] = None             # assetId
+    settings: ProjectSettings = Field(default_factory=ProjectSettings)
+    # 创作简报（§4.4）：老 project.json 没有这个键时取默认空对象，向后兼容
+    brief: ProjectBrief = Field(default_factory=ProjectBrief)
+    createdAt: str = Field(default_factory=now_iso)
+    updatedAt: str = Field(default_factory=now_iso)
+
+
+class AssetItem(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("as"))
+    type: Literal["icon", "font", "image", "baseplate"] = "image"
+    name: str = ""
+    library: Optional[str] = None           # icon 子库
+    tags: List[str] = []
+    ext: str = ".png"
+    size: int = 0
+    colorable: bool = False                 # SVG 可换色
+    aiProvenance: Optional[BaseplateMeta] = None
+    createdAt: str = Field(default_factory=now_iso)
+
+    @property
+    def rel_path(self) -> str:
+        if self.type == "icon":
+            return f"icons/{self.library or 'misc'}/{self.id}{self.ext}"
+        if self.type == "font":
+            return f"fonts/{self.id}{self.ext}"
+        if self.type == "baseplate":
+            return f"baseplates/{self.id}{self.ext}"
+        return f"images/{self.id}{self.ext}"

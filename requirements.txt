@@ -1,0 +1,9 @@
+# 桌游设计工作坊 — 服务端依赖
+# 安装：pip install -r requirements.txt
+
+fastapi>=0.104
+uvicorn>=0.24
+pydantic>=2.5
+python-multipart>=0.0.6
+httpx>=0.27
+Pillow>=10.0

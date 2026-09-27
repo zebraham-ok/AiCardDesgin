@@ -1,0 +1,48 @@
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --border: #e3e6eb;
+  --text: #1f2329;
+  --muted: #8a9099;
+  --accent: #8b5a2b;
+  --accent-soft: #f3e6cf;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app { height: 100%; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+
+.page { padding: 20px 24px 40px; }
+.page-title { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
+.page-sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.muted { color: var(--muted); }
+.row { display: flex; align-items: center; gap: 10px; }
+.spacer { flex: 1; }
+
+.empty {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--muted);
+}
