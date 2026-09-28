@@ -211,6 +211,7 @@ import ExportDialog from '../components/ExportDialog.vue'
 import NewCardDialog from '../components/NewCardDialog.vue'
 import ProjectBriefPanel from '../components/ProjectBriefPanel.vue'
 import { BLEED_MM, CARD_SIZES, canvasSpec } from '../constants/cardSizes'
+import { useTheme } from '../composables/useTheme'
 
 const route = useRoute()
 const router = useRouter()
@@ -275,6 +276,7 @@ function onBriefSaved(b: any) {
 }
 
 // ---- 图表 ---------------------------------------------------------------
+const { isDark } = useTheme()
 const chartEls: Record<string, HTMLElement> = {}
 const chartObjs: Record<string, echarts.ECharts> = {}
 function setChart(el: any, d: any) {
@@ -282,8 +284,26 @@ function setChart(el: any, d: any) {
   if (el) chartEls[k] = el
 }
 
+/** 图表不跟 Element Plus 的暗色变量走，配色从 CSS 变量现读，切主题时重绘 */
+function chartTheme() {
+  const cs = getComputedStyle(document.documentElement)
+  const v = (n: string, fb: string) => cs.getPropertyValue(n).trim() || fb
+  return {
+    text: v('--chart-text', '#6b7280'),
+    line: v('--chart-line', '#e3e6eb'),
+    bar: v('--accent', '#8b5a2b'),
+    panel: v('--panel', '#ffffff'),
+    border: v('--border', '#e3e6eb')
+  }
+}
+
 function renderCharts() {
   for (const k in chartObjs) { chartObjs[k].dispose(); delete chartObjs[k] }
+  const t = chartTheme()
+  const tip = {
+    backgroundColor: t.panel, borderColor: t.border,
+    textStyle: { color: t.text }, extraCssText: 'box-shadow: var(--shadow-card)'
+  }
   for (const d of stats.value.distributions || []) {
     const k = d.templateId + d.key
     const el = chartEls[k]
@@ -298,14 +318,24 @@ function renderCharts() {
       const keys = Object.keys(buckets).map(Number).sort((a, b) => a - b)
       const chart = echarts.init(el)
       chart.setOption({
+        textStyle: { color: t.text },
         grid: { left: 34, right: 12, top: 16, bottom: 26 },
-        xAxis: { type: 'category', data: keys, name: d.label },
-        yAxis: { type: 'value', minInterval: 1 },
+        xAxis: {
+          type: 'category', data: keys, name: d.label,
+          nameTextStyle: { color: t.text },
+          axisLabel: { color: t.text },
+          axisLine: { lineStyle: { color: t.line } }
+        },
+        yAxis: {
+          type: 'value', minInterval: 1,
+          axisLabel: { color: t.text },
+          splitLine: { lineStyle: { color: t.line } }
+        },
         series: [{
           type: 'bar', data: keys.map(x => buckets[x]), barMaxWidth: 26,
-          itemStyle: { color: '#8b5a2b', borderRadius: [3, 3, 0, 0] }
+          itemStyle: { color: t.bar, borderRadius: [3, 3, 0, 0] }
         }],
-        tooltip: { trigger: 'axis' }
+        tooltip: { ...tip, trigger: 'axis' }
       })
       chartObjs[k] = chart
     } else {
@@ -313,17 +343,21 @@ function renderCharts() {
       for (const v of d.values) counts[String(v)] = (counts[String(v)] || 0) + 1
       const chart = echarts.init(el)
       chart.setOption({
+        textStyle: { color: t.text },
         series: [{
           type: 'pie', radius: ['40%', '68%'],
           data: Object.entries(counts).map(([name, value]) => ({ name, value })),
-          label: { fontSize: 11 }
+          label: { fontSize: 11, color: t.text }
         }],
-        tooltip: { trigger: 'item' }
+        tooltip: { ...tip, trigger: 'item' }
       })
       chartObjs[k] = chart
     }
   }
 }
+
+// 切换亮/暗后重绘（ECharts 不认 CSS 变量，必须重新 setOption）
+watch(isDark, () => setTimeout(renderCharts, 0))
 
 // ---- 操作 ---------------------------------------------------------------
 // ---- §P5-E2 批量导出（范围：全部 / 当前筛选 / 已勾选） ---------------------
@@ -484,8 +518,8 @@ onMounted(refresh)
 .tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
 /* 新建模板/卡牌对话框：下拉项右侧的说明 */
 .opt-hint { float: right; margin-left: 14px; font-size: 11px; color: var(--muted); }
-.opt-hint.warn { color: #e6a23c; }
-.warn { font-size: 12px; color: #e6a23c; line-height: 1.6; }
+.opt-hint.warn { color: var(--warn-text); }
+.warn { font-size: 12px; color: var(--warn-text); line-height: 1.6; }
 
 /* 窄屏回落成单栏（左右各半在 900px 以下太挤） */
 @media (max-width: 900px) {

@@ -160,14 +160,14 @@ onMounted(load)
   display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px;
 }
 .icon-cell {
-  background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
   padding: 10px 6px; text-align: center;
 }
 .icon-cell img { width: 38px; height: 38px; }
 .icon-cell span { display: block; font-size: 12px; margin-top: 4px; }
 .icon-cell .lib { font-size: 11px; }
 .asset-card .thumb {
-  height: 90px; background: #f5f6f8; display: flex;
+  height: 90px; background: var(--panel-soft); display: flex;
   align-items: center; justify-content: center; margin-bottom: 8px; overflow: hidden;
 }
 .asset-card img { max-width: 100%; max-height: 100%; object-fit: contain; }

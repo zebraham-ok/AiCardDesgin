@@ -142,12 +142,12 @@ async function confirm() {
 
 <style scoped>
 .crop-stage {
-  height: 400px; background: #22262c; border-radius: 8px; overflow: hidden;
+  height: 400px; background: var(--stage); border-radius: 8px; overflow: hidden;
 }
 .crop-stage img { max-width: 100%; display: block; }
 .crop-bar {
   display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap;
 }
 .hint { font-size: 12px; margin-top: 8px; }
-:deep(.cropper-view-box) { outline: 2px solid #409eff; outline-color: #409eff; }
+:deep(.cropper-view-box) { outline: 2px solid var(--el-color-primary); }
 </style>

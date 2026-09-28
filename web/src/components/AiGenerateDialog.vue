@@ -12,6 +12,10 @@
         <el-tag v-if="kind === 'baseplate'" size="small" type="success">
           带布局参考图（含出血，图生图）
         </el-tag>
+        <!-- 模板里打开了「底板 → 进 AI 参考图」：参考图会垫上现有底板，属于"改良"而非重画 -->
+        <el-tag v-if="kind === 'baseplate' && preview.refBase" size="small" type="warning">
+          基于现有底板改良
+        </el-tag>
         <span class="muted">{{ kind === 'baseplate'
           ? '底板只出外壳：图片位留空，配图到卡牌页面单独生成'
           : '尺寸取自该图片区域，prompt 已带上卡面文字' }}</span>
@@ -138,14 +142,14 @@ async function submit() {
 .row { display: flex; align-items: center; gap: 8px; }
 .spacer { flex: 1; }
 .prompt-box {
-  background: #f6f7f9; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--fill-soft); border: 1px solid var(--border); border-radius: 6px;
   padding: 10px; font-size: 12px; line-height: 1.6; white-space: pre-wrap;
   max-height: 240px; overflow: auto; margin: 8px 0 4px;
 }
 .neg { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .notice {
-  margin-top: 10px; background: #f4f8ff; border: 1px solid #d6e4ff; border-radius: 6px;
-  padding: 8px 10px; font-size: 12px; line-height: 1.7; color: #4a5568;
+  margin-top: 10px; background: var(--info-bg); border: 1px solid var(--info-border); border-radius: 6px;
+  padding: 8px 10px; font-size: 12px; line-height: 1.7; color: var(--info-text);
 }
 .notice em { font-style: normal; color: var(--accent); font-weight: 600; }
 .muted { color: var(--muted); }

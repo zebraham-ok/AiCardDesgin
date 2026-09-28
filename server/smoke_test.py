@@ -186,9 +186,11 @@ def main() -> int:
               back["background"].get("mask") == [[10, 20, 100, 60], [200, 300, 50, 50]],
               back["background"].get("mask"))
         c.put(f"/api/templates/{tid}", json={"projectId": pid, "background": bg0})
-        check("清空后 mask 消失",
-              not (c.get(f"/api/templates/{tid}?pid={pid}").json()
-                   ["background"].get("mask")))
+        # 注意：不能断言"还原后没有 mask"—— 用户自己的模板可能就挖过空
+        # （实测：法术卡的 background 就带 mask）。这里只断言"回到了快照的样子"。
+        bg_back = c.get(f"/api/templates/{tid}?pid={pid}").json()["background"]
+        check("还原后 background 与快照一致（含用户自己的 mask）",
+              bg_back.get("mask") == bg0.get("mask"), bg_back.get("mask"))
 
         # 换一张底板图时，旧图上的挖空区要自动丢弃（在临时模板上验证，不碰用户模板）
         bps = c.get("/api/assets?type=baseplate").json()
@@ -210,6 +212,55 @@ def main() -> int:
                               f"?templateId={rtid}&assetId={bps[1]['id']}")
                        .json()["background"].get("mask") == [[7, 7, 30, 30]]))
             c.delete(f"/api/templates/{rtid}?pid={pid}")
+
+        # 元素级「进 AI 参考图」开关 + 字段衬底 + 图层 z（都在临时模板上验证，不碰用户模板）
+        print("[AI 参考图开关 / 衬底 / z 序]")
+        rt = c.post(f"/api/projects/{pid}/templates", json={"name": "AI开关临时模板"})
+        rtid = rt.json()["id"]
+        c.put(f"/api/templates/{rtid}", json={"projectId": pid, "fields": [
+            {"key": "name", "label": "卡名", "kind": "text", "rect": [10, 10, 100, 50], "order": 5},
+            {"key": "desc", "label": "描述", "kind": "text", "multiline": True,
+             "rect": [10, 100, 200, 80],
+             "order": 6, "backdrop": {"enabled": True, "opacity": 0.5}},
+            {"key": "hidden", "label": "不进气区", "kind": "text", "rect": [10, 300, 100, 40],
+             "order": 7, "aiRef": False},
+            # 老别名：kind="textarea" 必须继续被接受（老模板/老项目包不报错）
+            {"key": "legacy", "label": "老多行", "kind": "textarea",
+             "rect": [10, 400, 100, 40], "order": 8, "aiRef": False},
+        ], "layers": [
+            {"name": "外框", "rect": [1, 1, 700, 1000], "z": 1, "aiRef": True},
+            {"name": "底纹", "rect": [2, 2, 300, 300], "z": 2},
+        ]})
+        back = c.get(f"/api/templates/{rtid}?pid={pid}").json()
+        f_desc = next(f for f in back["fields"] if f["key"] == "desc")
+        check("衬底可存取（含透明度）",
+              f_desc["backdrop"]["enabled"] and abs(f_desc["backdrop"]["opacity"] - 0.5) < 1e-6,
+              f_desc.get("backdrop"))
+        check("多行开关可存取", f_desc.get("multiline") is True, f_desc.get("multiline"))
+        check("老 textarea 别名仍被接受",
+              next(f for f in back["fields"] if f["key"] == "legacy")["kind"] == "textarea")
+        check("图层 z 可存取", any(l.get("z") == 1 for l in back["layers"]))
+        pv = c.post(f"/api/projects/{pid}/preview-prompt", json={"templateId": rtid}).json()
+        zs = pv["zones"]
+        check("AI 参考图：显式打开的图层进分区", any("图层·外框" in z for z in zs), zs)
+        check("AI 参考图：默认关闭的图层不进", not any("底纹" in z for z in zs), zs)
+        check("AI 参考图：aiRef=False 的字段不进", not any("不进气" in z for z in zs), zs)
+        check("参考图区域数 = 提示词分区数", len(zs) == 3, zs)
+        check("衬底字段的分区带上「面板由模板叠加」说明",
+              "半透明面板由模板叠加" in pv["prompt"])
+        check("默认不把现有底板垫进参考图", pv["refBase"] is False, pv["refBase"])
+
+        # 移除底板：只解开模板对图片的引用，图片本身必须留在资源库（全局共享，删了就误伤别的项目）
+        if bps:
+            c.put(f"/api/templates/{rtid}", json={"projectId": pid, "background": {
+                "assetId": bps[0]["id"], "bleedPx": 36, "mask": [[1, 1, 10, 10]]}})
+            c.put(f"/api/templates/{rtid}", json={"projectId": pid, "background": {}})
+            bkb = c.get(f"/api/templates/{rtid}?pid={pid}").json()["background"]
+            check("移除底板后引用与挖空区一并清掉",
+                  not bkb.get("assetId") and not bkb.get("mask"), bkb)
+            check("资源库里那张图仍在",
+                  c.get(f"/api/assets/{bps[0]['id']}/file").status_code == 200)
+        c.delete(f"/api/templates/{rtid}?pid={pid}")
 
         # 新建模板时可选常见卡牌尺寸（物理 mm 优先，像素按 DPI 换算）
         r = c.post(f"/api/projects/{pid}/templates", json={

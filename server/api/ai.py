@@ -127,6 +127,22 @@ def _ref_hash(p) -> Optional[str]:
         return None
 
 
+def _baseplate_file(tpl: Any):
+    """模板底板的实际文件路径（没底板 / 文件丢了返回 None）。
+
+    用于「底板 → 进 AI 参考图」：把现有底板垫在参考图底下，
+    给的是"基于当前底板改良"而不是"从零再来"。
+    """
+    from pathlib import Path as _Path
+
+    aid = (tpl.background or {}).get("assetId")
+    a = repo.get_asset(aid) if aid else None
+    if not a:
+        return None
+    p = _Path(config.ASSETS_DIR) / a.rel_path
+    return p if p.exists() else None
+
+
 @router.post("/projects/{pid}/ai/baseplate")
 async def gen_baseplate(pid: str, body: GenBody):
     """模板底板生成：布局参考图 + 提示词 → n 张候选（异步 job）。
@@ -144,7 +160,10 @@ async def gen_baseplate(pid: str, body: GenBody):
     ref_path = None
     if body.useLayoutRef and layout_ref.zones_from_template(tpl):
         out = config.WORKSPACE / "jobs" / "refs"
-        ref_path = layout_ref.ref_for_template(tpl, out / f"{tpl.id}_{size}.png")
+        # 「底板 → 进 AI 参考图」打开时，把现有底板垫在参考图底下（改良/局部重画）
+        base = _baseplate_file(tpl) if (tpl.background or {}).get("aiRef") else None
+        ref_path = layout_ref.ref_for_template(
+            tpl, out / f"{tpl.id}_{size}{'_base' if base else ''}.png", base_image=base)
 
     job = jobs.create("baseplate", pid, {
         "templateId": tpl.id, "size": size, "n": body.n, "model": model,

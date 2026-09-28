@@ -100,12 +100,12 @@ function choose() {
 .grid.iconish { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
 .cell {
   border: 2px solid var(--border); border-radius: 8px; padding: 6px; cursor: pointer;
-  background: #fff;
+  background: var(--panel);
 }
 .cell:hover { border-color: var(--accent); }
 .cell.picked { border-color: var(--accent); background: var(--accent-soft); }
 .cell img {
-  width: 100%; height: 96px; object-fit: contain; background: #f5f6f8; border-radius: 4px;
+  width: 100%; height: 96px; object-fit: contain; background: var(--panel-soft); border-radius: 4px;
 }
 .grid.iconish .cell img { height: 48px; }
 .cell .nm {

@@ -38,6 +38,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+# 元素选择与参考图共用（唯一出处）：图里画什么、提示词里就点名什么
+from .layout_ref import ZONE_LIMIT, ai_elements
+
 # ---------------------------------------------------------------------------
 # 常量
 # ---------------------------------------------------------------------------
@@ -70,6 +73,10 @@ _KIND_PURPOSE = {
     "enum": "标记区：与整体材质连续的小块平坦区域，不要纯白色块",
     "image": _EMPTY_SLOT,
     "icon": _EMPTY_SLOT,
+    # 图层（用户在模板里显式打开「进 AI 参考图」的那些）：告诉模型这里有固有图形，
+    # 免得它又在同一位置画一条装饰边框（模型天生爱加框，见 §6.10 硬规则 3）
+    "layer": "既有装饰区：这里已由模板自带的固定图形占据，底板只需延续材质，"
+             "不要在此处再画边框、色块或装饰线",
 }
 
 
@@ -171,27 +178,27 @@ def _zone_label(rect: List[float], W: float, H: float) -> str:
     return "画面中部的一块矩形区域"
 
 
-def describe_zones(tpl: Any, limit: int = 6) -> List[str]:
-    """把模板的字段区域转成给模型看的自然语言分区列表（自上而下、从左到右）。"""
+def describe_zones(tpl: Any, limit: int = ZONE_LIMIT) -> List[str]:
+    """把「给 AI 的元素表」转成自然语言分区描述（自上而下、从左到右）。
+
+    **元素选择与参考图共用 `layout_ref.ai_elements()`**：图里画了什么，这里就描述什么。
+    以前两边各写一份、上限还不一样（图 8 / 文 6）—— 画了却没说到的区域，模型会忽略甚至抹掉。
+    """
     W = float(_g(_g(tpl, "canvas") or {}, "w") or 745)
     H = float(_g(_g(tpl, "canvas") or {}, "h") or 1040)
-    fields = list(_g(tpl, "fields") or [])
-    # 隐形定位框（guide=true）表示"该区域已由底板承担"，不参与出图描述
-    live = [f for f in fields if not _g(f, "guide")]
-    if not live:
-        live = fields
-    live = sorted(live, key=lambda f: (_g(f, "rect")[1], _g(f, "rect")[0]))[:limit]
 
     out: List[str] = []
     seen: Dict[str, int] = {}
-    for f in live:
-        label = _zone_label(list(_g(f, "rect")), W, H)
+    for name, kind, rect, has_backdrop in ai_elements(tpl, limit):
+        label = _zone_label(list(rect), W, H)
         seen[label] = seen.get(label, 0) + 1
         if seen[label] > 1:
             label = f"{label}（第 {seen[label]} 个）"   # 避免多个同名区域让模型混乱
         label = label.replace("画面", "", 1)
-        purpose = _KIND_PURPOSE.get(_g(f, "kind") or "text", _KIND_PURPOSE["text"])
-        name = _g(f, "label") or _g(f, "key") or ""
+        purpose = _KIND_PURPOSE.get(kind, _KIND_PURPOSE["text"])
+        if has_backdrop:
+            # 衬底是模板侧自己叠加的半透明面板 —— 提前告诉模型，底板别在这儿用力
+            purpose += "（该区的半透明面板由模板叠加，底板保持平整、低对比即可）"
         out.append(f"{label}（{name}）：{purpose}")
     return out
 
@@ -462,4 +469,6 @@ def preview(pid_brief: Any, tpl: Any, card: Any = None,
         size = baseplate_size(tpl)
     return {"prompt": p, "negative_prompt": n, "size": size,
             "zones": describe_zones(tpl) if kind == "baseplate" else [],
+            # 是否会在参考图里垫上现有底板（模板里「底板 → 进 AI 参考图」开关）
+            "refBase": bool(kind == "baseplate" and _g(_g(tpl, "background") or {}, "aiRef")),
             "blocks": brief_blocks(pid_brief)}

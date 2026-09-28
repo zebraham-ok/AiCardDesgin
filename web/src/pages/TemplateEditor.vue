@@ -47,6 +47,7 @@
             <el-dropdown-item command="library">从资源库中选择…</el-dropdown-item>
             <el-dropdown-item command="ai">AI 生成底板…</el-dropdown-item>
             <el-dropdown-item command="mask" divided>挖空底板区域…</el-dropdown-item>
+            <el-dropdown-item command="clear">移除底板…</el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
@@ -55,52 +56,67 @@
     </div>
 
     <div class="body">
-      <!-- 左：图层 / 字段结构（可拖拽排序） -->
-      <aside class="side left">
-        <div class="side-title">图层（拖动排序）</div>
+      <!-- 左：层级（底板 / 图层 / 字段合成一条 z 序）+ 字段内容 -->
+      <aside class="side left" :style="{ width: leftW + 'px' }">
+        <div class="side-title">层级（上 = 前，下 = 后）</div>
         <el-scrollbar>
           <div
-            v-for="(l, i) in tpl.layers ?? []" :key="l.id"
-            class="item" :class="{ active: sel?.id === l.id }"
+            v-for="it in zList" :key="it.key"
+            class="item" :class="{ active: it.id && sel?.id === it.id }"
             draggable="true"
-            @click="selectById('layer', l.id)"
-            @dragstart="onDragStart('layer', l, $event)"
+            @click="it.kind !== 'background' && selectById(it.kind, it.id)"
+            @dragstart="onDragStartItem(it, $event)"
             @dragover.prevent
-            @drop="onDrop('layer', l, $event)"
+            @drop="onDropItem(it, $event)"
             @dragend="onDragEnd">
-            <span class="dot" style="background:#c2a04a"></span>
-            <span class="label">{{ l.name }}</span>
+            <span class="dot" :style="{ background: it.color }"></span>
+            <span class="label">{{ it.name }}</span>
+            <el-tag v-if="it.kind === 'field' && it.obj.binding === 'fixed'"
+                    size="small" effect="plain" class="mini-tag">固定</el-tag>
+            <span class="op ai" :class="{ on: it.aiRef }"
+                  :title="it.aiRef ? '会画进给 AI 的参考图（点击关闭）' : '不画进给 AI 的参考图（点击打开）'"
+                  @click.stop="toggleAiRef(it)">AI</span>
             <span class="ops">
-              <span class="op" title="上移" @click.stop="move('layer', i, -1)">↑</span>
-              <span class="op" title="下移" @click.stop="move('layer', i, 1)">↓</span>
-              <span class="op" :title="l.visible === false ? '已隐藏' : '可见'"
-                    @click.stop="toggleVisible(l)">{{ l.visible === false ? '◌' : '◉' }}</span>
-              <span class="op" :title="l.locked ? '已锁定' : '未锁定'"
-                    @click.stop="toggleLock(l)">{{ l.locked ? '🔒' : '🔓' }}</span>
+              <span class="op" title="往上一层（更靠前）" @click.stop="moveZ(it, -1)">↑</span>
+              <span class="op" title="往下一层（更靠后）" @click.stop="moveZ(it, 1)">↓</span>
+              <template v-if="it.kind === 'layer'">
+                <span class="op" :title="it.obj.visible === false ? '已隐藏' : '可见'"
+                      @click.stop="toggleVisible(it.obj)">{{ it.obj.visible === false ? '◌' : '◉' }}</span>
+                <span class="op" :title="it.obj.locked ? '已锁定' : '未锁定'"
+                      @click.stop="toggleLock(it.obj)">{{ it.obj.locked ? '🔒' : '🔓' }}</span>
+              </template>
+              <span v-if="it.kind === 'background'" class="op" title="挖空区域"
+                    @click.stop="showMask = true">挖</span>
+              <span v-if="it.kind === 'background'" class="op" title="移除底板"
+                    @click.stop="removeBaseplate()">✕</span>
+              <span v-if="it.kind === 'layer'" class="op" title="删除图层"
+                    @click.stop="removeLayer(it.obj)">✕</span>
             </span>
           </div>
 
-          <div class="side-title" style="margin-top:10px">字段（拖动排序）</div>
+          <div class="side-title" style="margin-top:10px">字段（内容）</div>
           <div
-            v-for="(f, i) in sortedFields" :key="f.id"
+            v-for="f in fieldsByZ" :key="f.id"
             class="item" :class="{ active: sel?.id === f.id }"
-            draggable="true"
-            @click="selectById('field', f.id)"
-            @dragstart="onDragStart('field', f, $event)"
-            @dragover.prevent
-            @drop="onDrop('field', f, $event)"
-            @dragend="onDragEnd">
+            @click="selectById('field', f.id)">
             <span class="dot" :style="{ background: colorOf(f.kind) }"></span>
             <span class="label">{{ f.label || f.key }}</span>
             <el-tag v-if="f.binding === 'fixed'" size="small" effect="plain" class="mini-tag">固定</el-tag>
-            <span class="ops">
-              <span class="op" title="上移" @click.stop="move('field', i, -1)">↑</span>
-              <span class="op" title="下移" @click.stop="move('field', i, 1)">↓</span>
-            </span>
+            <span v-if="f.backdrop?.enabled" class="mini-tag chip">衬底</span>
             <span class="kind">{{ f.kind }}</span>
+          </div>
+          <div v-if="!tpl.fields?.length" class="muted" style="padding:6px 8px;font-size:12px">
+            还没有字段，点右上「＋字段」
+          </div>
+          <div class="muted" style="padding:8px;font-size:11px;line-height:1.6">
+            遮挡顺序在「层级」里拖；「AI」开关决定该元素是否画进给 AI 的参考图。
           </div>
         </el-scrollbar>
       </aside>
+
+      <!-- 拖动调宽（双击恢复默认） -->
+      <div class="grip" title="拖动调宽 · 双击恢复默认"
+           @pointerdown="(e: PointerEvent) => dragLeft(e, 1)" @dblclick="resetLeft()" />
 
       <!-- 中：画布 -->
       <div class="stage" ref="stageEl">
@@ -112,8 +128,13 @@
         </div>
       </div>
 
+      <!-- 拖动调宽（双击恢复默认） -->
+      <div class="grip" title="拖动调宽 · 双击恢复默认"
+           @pointerdown="(e: PointerEvent) => dragRight(e, -1)" @dblclick="resetRight()" />
+
       <!-- 右：属性 -->
-      <aside class="side right" @focusin="captureState" @mousedown="captureState">
+      <aside class="side right" :style="{ width: rightW + 'px' }"
+             @focusin="captureState" @mousedown="captureState">
         <div v-if="!sel" class="empty" style="padding:24px 8px">
           在画布或左侧列表中选择一个元素
         </div>
@@ -122,11 +143,19 @@
           <div class="side-title">字段属性</div>
           <el-form label-width="70px" size="small">
             <el-form-item label="字段 key"><el-input v-model="selField.key" @change="mark" /></el-form-item>
-            <el-form-item label="显示名"><el-input v-model="selField.label" @change="mark" /></el-form-item>
+            <el-form-item label="显示名">
+              <!-- 直接用该字段的字体显示（只跟字族，不跟字号/颜色，免得撑坏面板） -->
+              <el-input v-model="selField.label" @change="mark" :style="fieldFontStyle" />
+            </el-form-item>
             <el-form-item label="类型">
               <el-select v-model="selField.kind" @change="mark">
                 <el-option v-for="k in KINDS" :key="k" :label="k" :value="k" />
               </el-select>
+            </el-form-item>
+            <!-- 单行 / 多行只影响卡牌页的输入框；画布上两者都是自动换行 -->
+            <el-form-item v-if="selField.kind === 'text'" label="多行" :for="''">
+              <el-switch v-model="selField.multiline" @change="mark" />
+              <span class="hint-inline">卡牌页给多行输入框（否则单行）</span>
             </el-form-item>
             <!-- 注：radio-group / color-picker / slider 的根元素是 div（不是表单控件），
                  Element Plus 会把 "<label for>" 指向它 → Chrome 报
@@ -186,11 +215,59 @@
                 <el-input-number v-model="selField.style.minFontSize" @change="mark" />
               </el-form-item>
             </template>
+            <!-- 可见性就三个开关，默认：玩家可见 ✓ / AI 可见 ✓ / 衬底 ✗ -->
             <el-divider content-position="left">可见性</el-divider>
-            <el-form-item label="定位框" :for="''">
-              <el-switch v-model="selField.guide" @change="mark" />
-              <span class="hint-inline">卡牌与导出都不渲染，仅编辑器内标注（AI 底板用）</span>
+            <el-form-item label="玩家可见" :for="''">
+              <el-switch :model-value="!selField.guide"
+                         @update:model-value="(v: boolean) => setGuide(selField, !v)" />
+              <span class="hint-inline">关闭 = 卡牌与导出都不渲染</span>
             </el-form-item>
+            <el-form-item label="AI 可见" :for="''">
+              <el-switch :model-value="aiRefOf(selField)"
+                         @update:model-value="(v: boolean) => setAiRef(selField, v)" />
+              <span class="hint-inline">画进给 AI 的参考图并点名</span>
+            </el-form-item>
+            <el-form-item label="衬底" :for="''">
+              <el-switch :model-value="!!selField.backdrop?.enabled"
+                         @update:model-value="toggleBackdrop" />
+              <span class="hint-inline">字段自带的面板，跟着字段走</span>
+            </el-form-item>
+            <el-divider v-if="selField.backdrop?.enabled" content-position="left">衬底样式</el-divider>
+            <template v-if="selField.backdrop?.enabled">
+              <el-form-item label="内边距" :for="''">
+                水平
+                <el-input-number v-model="bdPadH" :min="0" :max="300" :controls="false"
+                                 size="small" style="width: 62px" />
+                垂直
+                <el-input-number v-model="bdPadV" :min="0" :max="300" :controls="false"
+                                 size="small" style="width: 62px" />
+              </el-form-item>
+              <el-form-item label="填充" :for="''">
+                <el-color-picker v-model="selField.backdrop.fill" @change="mark" />
+              </el-form-item>
+              <el-form-item label="透明度" :for="''">
+                <el-slider v-model="selField.backdrop.opacity" :min="0" :max="1" :step="0.05"
+                           @change="mark" />
+              </el-form-item>
+              <el-form-item label="描边" :for="''">
+                <el-color-picker v-model="selField.backdrop.stroke" @change="mark" />
+              </el-form-item>
+              <el-form-item label="线宽">
+                <el-input-number v-model="selField.backdrop.strokeWidth" :min="0" :max="40"
+                                 @change="mark" />
+              </el-form-item>
+              <el-form-item label="圆角">
+                <el-input-number v-model="selField.backdrop.radius" :min="0" :max="300"
+                                 @change="mark" />
+              </el-form-item>
+              <el-form-item label="层级" :for="''">
+                <el-radio-group v-model="selField.backdrop.placement" @change="mark">
+                  <el-radio value="behind">在内容后</el-radio>
+                  <el-radio value="front">在内容前</el-radio>
+                </el-radio-group>
+              </el-form-item>
+            </template>
+
             <el-divider content-position="left">约束</el-divider>
             <el-form-item label="类型">
               <el-select v-model="selField.constraint.type" @change="mark">
@@ -229,9 +306,15 @@
               <el-slider v-model="selLayer.opacity" :min="0" :max="1" :step="0.05" @change="mark" />
             </el-form-item>
             <el-form-item label="锁定"><el-switch v-model="selLayer.locked" @change="mark" /></el-form-item>
-            <el-form-item label="定位框" :for="''">
-              <el-switch v-model="selLayer.guide" @change="mark" />
-              <span class="hint-inline">卡牌与导出都不渲染，仅编辑器内标注</span>
+            <el-form-item label="玩家可见" :for="''">
+              <el-switch :model-value="!selLayer.guide"
+                         @update:model-value="(v: boolean) => setGuide(selLayer, !v)" />
+              <span class="hint-inline">关闭 = 卡牌与导出都不渲染</span>
+            </el-form-item>
+            <el-form-item label="AI 可见" :for="''">
+              <el-switch :model-value="!!selLayer.aiRef"
+                         @update:model-value="(v: boolean) => setAiRef(selLayer, v)" />
+              <span class="hint-inline">告诉 AI 这里已有固定图形，别重复画</span>
             </el-form-item>
           </el-form>
           <el-button type="danger" text size="small" @click="removeSel">删除图层</el-button>
@@ -261,10 +344,10 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Canvas } from 'fabric'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/client'
 import {
-  renderTemplate, rectFromObject, fieldColor, contentSize
+  renderTemplate, rectFromObject, fieldColor, contentSize, normalizeZ
 } from '../render/templateRenderer'
 import { createSnapping } from '../render/snapping'
 import FontPicker from '../components/FontPicker.vue'
@@ -272,6 +355,7 @@ import ImageCropDialog from '../components/ImageCropDialog.vue'
 import BaseplateMaskDialog from '../components/BaseplateMaskDialog.vue'
 import { useUnsavedGuard } from '../composables/useUnsavedGuard'
 import { useWheelZoom } from '../composables/useWheelZoom'
+import { usePanelResize } from '../composables/usePanelResize'
 import AiGenerateDialog from '../components/AiGenerateDialog.vue'
 import AssetPickerDialog from '../components/AssetPickerDialog.vue'
 
@@ -280,7 +364,9 @@ const router = useRouter()
 const pid = computed(() => route.params.pid as string)
 const tid = computed(() => route.params.tid as string)
 
-const KINDS = ['text', 'textarea', 'number', 'enum', 'image', 'icon']
+// 不再暴露 textarea：它和 text 在渲染/AI 侧完全一样，只影响卡牌页的输入框行数，
+// 那个用「多行」开关表达（老模板里的 textarea 在加载时会被就地迁移）
+const KINDS = ['text', 'number', 'enum', 'image', 'icon']
 
 const loading = ref(false)
 const dirty = ref(false)
@@ -288,6 +374,10 @@ const wireframe = ref(true)
 const bleedMode = ref(false)
 const snapEnabled = ref(true)
 const zoom = ref(0.6)
+
+// 左右侧栏宽度可拖拽调节，值记在 localStorage（双击抓手恢复默认）
+const { width: leftW, onDown: dragLeft, reset: resetLeft } = usePanelResize('tplLeft', 300)
+const { width: rightW, onDown: dragRight, reset: resetRight } = usePanelResize('tplRight', 330)
 const tpl = ref<any>({ canvas: { w: 745, h: 1040, dpi: 300, bleed: 36 }, layers: [], fields: [], background: {} })
 const sel = ref<any>(null)
 const rect = ref<number[]>([0, 0, 0, 0])
@@ -305,8 +395,129 @@ const CW = computed(() => contentSize(tpl.value, bleedMode.value).w)
 const CH = computed(() => contentSize(tpl.value, bleedMode.value).h)
 const OFF = computed(() => contentSize(tpl.value, bleedMode.value).offset)
 
-const sortedFields = computed(() =>
-  [...(tpl.value.fields ?? [])].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)))
+/**
+ * 统一层级列表（底板 / 图层 / 字段按 z 混排）。
+ * **列表顶部 = z 最大 = 画在最后 = 最靠前** —— 与所有设计工具的习惯一致，
+ * 也顺手修掉了旧版「↑ 按钮实际把图层往下压」的方向错误。
+ */
+const zList = computed(() => {
+  const items: any[] = []
+  const bg = tpl.value.background
+  if (bg?.assetId) {
+    items.push({
+      key: 'bg', kind: 'background', id: '', name: '底板' + (bg.mask?.length ? ` · 挖空 ${bg.mask.length} 处` : ''),
+      color: '#8a94a6', aiRef: !!bg.aiRef, obj: bg, z: Number(bg.z ?? -1)
+    })
+  }
+  for (const l of tpl.value.layers ?? []) {
+    items.push({
+      key: 'l_' + l.id, kind: 'layer', id: l.id, name: l.name || '图层',
+      color: '#c2a04a', aiRef: !!l.aiRef, obj: l, z: Number(l.z ?? 0)
+    })
+  }
+  for (const f of tpl.value.fields ?? []) {
+    items.push({
+      key: 'f_' + f.id, kind: 'field', id: f.id, name: f.label || f.key,
+      color: colorOf(f.kind), aiRef: aiRefOf(f), obj: f, z: Number(f.order ?? 0)
+    })
+  }
+  return items.sort((a, b) => b.z - a.z)          // 前 → 后
+})
+
+/** 字段列表（同样按 z 排列，免得两块列表顺序互相打架） */
+const fieldsByZ = computed(() => [...zList.value].filter(i => i.kind === 'field')
+  .map(i => i.obj))
+
+/** 字段是否进 AI 参考图：缺省 = 不是隐形定位框就进（与后端 layout_ref.ai_elements 一致） */
+function aiRefOf(f: any) {
+  return f.aiRef === undefined || f.aiRef === null ? !f.guide : !!f.aiRef
+}
+
+/**
+ * 「玩家可见」开关。注意数据里存的是它的**反面**：`guide = true` 表示
+ * "只在编辑器里显示、卡牌与导出都不渲染"（这是历史命名，为兼容保留）。
+ */
+function setGuide(obj: any, v: boolean) {
+  pushHist()
+  obj.guide = v
+  dirty.value = true
+  redraw()
+}
+
+/** 「进 AI 参考图」开关：字段 / 图层 / 底板通用 */
+function setAiRef(obj: any, v: boolean) {
+  pushHist()
+  obj.aiRef = v
+  dirty.value = true
+  redraw()
+}
+
+/** 衬底：默认半透明白 + opacity 0.8（透明度只用 opacity 调，不在颜色里再叠一层 alpha） */
+function toggleBackdrop(v: boolean) {
+  const f = selField.value
+  if (!f) return
+  pushHist()
+  if (!f.backdrop) {
+    f.backdrop = {
+      enabled: v, pad: [8, 10, 8, 10], fill: '#ffffff', stroke: null,
+      strokeWidth: 0, radius: 8, opacity: 0.8, placement: 'behind'
+    }
+  } else f.backdrop.enabled = v
+  dirty.value = true
+  redraw()
+}
+
+/** 内边距：UI 只给「水平 / 垂直」，schema 里仍是四边数组（上右下左） */
+const bdPadH = computed({
+  get: () => selField.value?.backdrop?.pad?.[1] ?? 10,
+  set: (v: number) => {
+    const b = selField.value?.backdrop
+    if (!b) return
+    b.pad = [b.pad?.[0] ?? 8, v, b.pad?.[2] ?? 8, v]
+    mark()
+  }
+})
+const bdPadV = computed({
+  get: () => selField.value?.backdrop?.pad?.[0] ?? 8,
+  set: (v: number) => {
+    const b = selField.value?.backdrop
+    if (!b) return
+    b.pad = [v, b.pad?.[1] ?? 10, v, b.pad?.[3] ?? 10]
+    mark()
+  }
+})
+
+function getZ(it: any) { return it.kind === 'background' ? Number(it.obj.z ?? -1) : it.z }
+function setZ(it: any, z: number) {
+  if (it.kind === 'background') it.obj.z = z
+  else if (it.kind === 'layer') it.obj.z = z
+  else it.obj.order = z
+}
+
+/** 按当前列表顺序（顶=前）重写所有 z：连续整数，等于把层级关系固化下来 */
+function applyOrder(list: any[]) {
+  const n = list.length
+  list.forEach((it, i) => setZ(it, n - 1 - i))
+  dirty.value = true
+  redraw()
+}
+
+function toggleAiRef(it: any) {
+  pushHist()
+  const on = it.kind === 'field' ? aiRefOf(it.obj) : !!it.aiRef
+  if (it.kind === 'background') it.obj.aiRef = !on
+  else it.obj.aiRef = !on
+  dirty.value = true
+  redraw()
+}
+
+function removeLayer(l: any) {
+  pushHist()
+  tpl.value.layers = (tpl.value.layers ?? []).filter((x: any) => x.id !== l.id)
+  if (sel.value?.id === l.id) sel.value = null
+  dirty.value = true
+  redraw()
+}
 const selObj = computed(() => sel.value)
 const selField = computed(() =>
   (tpl.value.fields ?? []).find((f: any) => f.id === sel.value?.id))
@@ -314,6 +525,38 @@ const selLayer = computed(() =>
   (tpl.value.layers ?? []).find((l: any) => l.id === sel.value?.id))
 const isTextKind = computed(() =>
   ['text', 'textarea', 'number', 'enum'].includes(selField.value?.kind))
+
+/** 显示名输入框按该字段的字族显示（配合画布上的文字效果预览一起看） */
+const fieldFontStyle = computed(() => {
+  const fam = selField.value?.style?.fontFamily
+  return fam ? { fontFamily: fam } : {}
+})
+
+/**
+ * 老模板迁移：`kind: "textarea"` → `kind: "text" + multiline: true`。
+ * 就地改内存对象，用户保存一次就落到磁盘（后端仍接受 textarea 别名，不会报错）。
+ */
+function normalizeKinds(t: any) {
+  for (const f of t?.fields ?? []) {
+    if (f.kind === 'textarea') {
+      f.kind = 'text'
+      if (f.multiline === undefined || f.multiline === null) f.multiline = true
+    }
+  }
+}
+
+/**
+ * 老模板迁移：把「AI 可见」的缺省固化成显式值。
+ *
+ * 原先 `aiRef` 缺省 = `not guide`（隐形定位框默认不进参考图）；那样一来
+ * 用户关掉「玩家可见」时「AI 可见」会跟着变 —— 三个开关就不独立了。
+ * 固化之后：玩家可见 / AI 可见 / 衬底 各管各的。
+ */
+function normalizeFlags(t: any) {
+  for (const f of t?.fields ?? []) {
+    if (f.aiRef === undefined || f.aiRef === null) f.aiRef = !f.guide
+  }
+}
 
 const colorOf = fieldColor
 
@@ -368,6 +611,9 @@ async function load() {
   loading.value = true
   try {
     tpl.value = await api.get(`/templates/${tid.value}?pid=${pid.value}`)
+    normalizeZ(tpl.value)        // 老模板补出 z/order，层级列表才有正确顺序
+    normalizeKinds(tpl.value)    // 老模板的 textarea → text + 多行
+    normalizeFlags(tpl.value)    // 老模板的 aiRef 缺省固化，三个开关各自独立
     await nextTick()
     initCanvas()
     fit()
@@ -395,6 +641,7 @@ function initCanvas() {
   canvas.on('mouse:down', (e: any) => {
     if (e.target?.data?.kind) beforeDrag = snapshot()
   })
+  canvas.on('object:moving', onObjMoving)
   canvas.on('object:modified', onModified)
   snapper = createSnapping(canvas, {
     width: CW.value,
@@ -415,6 +662,33 @@ function onModified(e: any) {
   // object:modified 触发时几何已经变过了，用按下鼠标那一刻的快照入栈
   if (beforeDrag) { pushHist(beforeDrag); beforeDrag = null }
   syncObject(e.target)
+  // 重绘一次：缩放字段框后，框里的文字要按新尺寸重新排版（字体预览也是）
+  redraw()
+}
+
+/**
+ * 拖动时让「附属内容」跟着字段框走。
+ *
+ * 编辑器里字段内容是不可交互的（只有框能选、能拖），所以移动框时要手动带上它们；
+ * 否则拖动过程中文字会留在原地 —— 看起来就像"文字和框分离了"。
+ */
+function onObjMoving(e: any) {
+  if (!canvas) return
+  const t = e.target
+  const d = t?.data
+  const base = d?.base
+  if (!d?.id || !base) return
+  const dx = (t.left ?? 0) - base.left
+  const dy = (t.top ?? 0) - base.top
+  if (!dx && !dy) return
+  let moved = false
+  for (const o of canvas.getObjects() as any[]) {
+    if (o.data?.content && o.data.id === d.id && o.data.base) {
+      o.set({ left: o.data.base.left + dx, top: o.data.base.top + dy })
+      moved = true
+    }
+  }
+  if (moved) canvas.requestRenderAll()
 }
 
 /** 把 fabric 对象的位置写回模板数据（减去出血偏移） */
@@ -422,14 +696,31 @@ function syncObject(obj: any) {
   const d = obj?.data
   if (!d || !canvas) return
   const r = rectFromObject(obj, OFF.value)
+  let target: any = null
   if (d.kind === 'field') {
-    const f = (tpl.value.fields ?? []).find((x: any) => x.id === d.id)
-    if (f) f.rect = r
+    target = (tpl.value.fields ?? []).find((x: any) => x.id === d.id)
   } else if (d.kind === 'layer') {
-    const l = (tpl.value.layers ?? []).find((x: any) => x.id === d.id)
-    if (l) l.rect = r
+    target = (tpl.value.layers ?? []).find((x: any) => x.id === d.id)
   }
-  rect.value = [...r]
+  if (!target) return
+
+  /**
+   * 文字对象**只挪位置，不改尺寸**：fabric 的 Textbox 高度是"排完版之后的文字高度"
+   * （还会随自动缩放变），不是字段矩形的高。照着它回写会把框压扁到一行高。
+   *
+   * 现在编辑器里字段内容一律不可交互（拖动只认那个「手柄」，手柄是 Rect），
+   * 所以这条基本只作为兜底 —— 万一以后又让文字对象变成可拖的目标，不至于写坏数据。
+   */
+  const isTextBox = d.kind === 'field' &&
+    ['text', 'textarea', 'number', 'enum'].includes(target.kind) &&
+    obj.type !== 'rect' && obj.type !== 'Rect'
+  if (d.preview || isTextBox) {
+    target.rect = [r[0], r[1], target.rect[2], target.rect[3]]
+    rect.value = [...target.rect]
+  } else {
+    target.rect = r
+    rect.value = [...r]
+  }
   dirty.value = true
 }
 
@@ -454,13 +745,24 @@ async function redraw() {
     const keepId = sel.value?.id
     rendering = true
     try {
-      await renderTemplate(canvas!, tpl.value, {
+      const objs = await renderTemplate(canvas!, tpl.value, {
         wireframe: wireframe.value,
         interactive: true,
         bleedMode: bleedMode.value,
         guides: true,
         editor: true          // 让 guide=true 的隐形定位框在编辑器里可见
       })
+      // 记下每个对象的初始位置：拖动字段框时靠它算位移，好让附属内容跟着走
+      for (const o of objs as any[]) {
+        if (o?.data?.id && o.left != null && o.top != null) {
+          o.data.base = { left: o.left, top: o.top }
+        }
+      }
+    } catch (err: any) {
+      // 渲染是在 rAF 回调里跑的：异常没人接，表现就只有"画布一片白"，
+      // 排查全靠猜。这里必须自己兜住并说出来。
+      console.error('[renderTemplate]', err)
+      ElMessage.error('画布渲染失败：' + (err?.message || err))
     } finally {
       rendering = false
     }
@@ -472,7 +774,9 @@ async function redraw() {
 /** 重绘后把选中恢复回去：既能接上「控制面板继续编辑」，也让画布上的控制框不闪掉 */
 function restoreSelection(id?: string) {
   if (!canvas) return
-  const obj = id ? canvas.getObjects().find((o: any) => o.data?.id === id) : null
+  // 同一个字段可能有多个对象（手柄 + 内容），优先挑可交互的那个，否则控制框会丢
+  const same = id ? (canvas.getObjects() as any[]).filter((o: any) => o.data?.id === id) : []
+  const obj = same.find((o: any) => o.selectable !== false) || same[0]
   if (obj) {
     // 锁定图层的 selectable=false，强行选中会让它又能被拖动
     if (obj.selectable !== false) canvas.setActiveObject(obj)
@@ -548,52 +852,43 @@ function fit() {
   zoom.value = Math.max(0.15, Math.min(1.5, avail / CW.value))
 }
 
-// ---- 结构列表：排序 / 可见性 / 锁定 ---------------------------------------
-let dragItem: { kind: string; id: string } | null = null
+// ---- 层级列表：拖拽 / 排序 / 可见性 / 锁定 --------------------------------
+let dragKey = ''
 
-function onDragStart(kind: string, item: any, e: DragEvent) {
-  dragItem = { kind, id: item.id }
+function onDragStartItem(it: any, e: DragEvent) {
+  dragKey = it.key
   ;(e.currentTarget as HTMLElement)?.classList.add('dragging')
 }
 
 function onDragEnd(e: DragEvent) {
   (e.currentTarget as HTMLElement)?.classList.remove('dragging')
-  dragItem = null
+  dragKey = ''
 }
 
-function onDrop(kind: string, target: any, e: DragEvent) {
+/** 拖到某一项上 = 插到它前面（列表顶=最前） */
+function onDropItem(target: any, e: DragEvent) {
   e.preventDefault()
-  if (!dragItem || dragItem.kind !== kind || dragItem.id === target.id) return
-  const arr = kind === 'layer' ? tpl.value.layers : tpl.value.fields
-  const from = arr.findIndex((x: any) => x.id === dragItem!.id)
-  const to = arr.findIndex((x: any) => x.id === target.id)
+  if (!dragKey || dragKey === target.key) return
+  const list = [...zList.value]
+  const from = list.findIndex(i => i.key === dragKey)
+  const to = list.findIndex(i => i.key === target.key)
   if (from < 0 || to < 0) return
   pushHist()
-  const [it] = arr.splice(from, 1)
-  arr.splice(to, 0, it)
-  if (kind === 'field') arr.forEach((f: any, i: number) => { f.order = i })
-  dirty.value = true
-  redraw()
+  const [it] = list.splice(from, 1)
+  list.splice(to, 0, it)
+  applyOrder(list)
 }
 
-function move(kind: string, i: number, d: number) {
-  const arr = kind === 'layer' ? tpl.value.layers : sortedFields.value
-  const list = kind === 'layer' ? tpl.value.layers : tpl.value.fields
-  const j = i + d
-  if (j < 0 || j >= arr.length) return
+/** ↑↓：dir = -1 往列表上方（更靠前），+1 往下方（更靠后） */
+function moveZ(it: any, dir: number) {
+  const list = [...zList.value]
+  const i = list.findIndex(x => x.key === it.key)
+  const j = i + dir
+  if (i < 0 || j < 0 || j >= list.length) return
   pushHist()
-  if (kind === 'layer') {
-    const [it] = list.splice(i, 1)
-    list.splice(j, 0, it)
-  } else {
-    const a = arr[i], b = arr[j]
-    const tmp = a.order
-    a.order = b.order
-    b.order = tmp
-    list.forEach((f: any, k: number) => { f.order = k })
-  }
-  dirty.value = true
-  redraw()
+  const [x] = list.splice(i, 1)
+  list.splice(j, 0, x)
+  applyOrder(list)
 }
 
 function toggleVisible(l: any) {
@@ -619,6 +914,7 @@ function addField() {
     id: 'fd_' + Math.random().toString(36).slice(2, 10),
     key: `field_${n + 1}`, label: `字段${n + 1}`, kind: 'text',
     binding: 'editable', rect: [60, 60 + n * 60, 400, 50],
+    aiRef: true,                     // 新字段默认进 AI 参考图（可见性的三个默认值之一）
     style: { fontFamily: 'sans-serif',
              fontSize: 32, weight: 400, color: '#1a1a1a', align: 'left', valign: 'top',
              vertical: false, autoShrink: true, minFontSize: 16, lineHeight: 1.2,
@@ -679,6 +975,28 @@ function onBaseplateCmd(cmd: string) {
     if (!tpl.value.background?.assetId) return ElMessage.warning('这个模板还没有底板')
     showMask.value = true
   }
+  else if (cmd === 'clear') removeBaseplate()
+}
+
+/**
+ * 移除底板：只解开模板对这张图的引用，**资源库里那张图仍然保留**
+ * （资源是全局共享的，别的模板/项目可能还在用，删它就误伤了）。
+ * 保留 `background.color`（画布兜底色），其余与图相关的键一起清掉。
+ */
+async function removeBaseplate() {
+  const bg = tpl.value.background || {}
+  if (!bg.assetId) return ElMessage.warning('这个模板还没有底板')
+  try {
+    await ElMessageBox.confirm(
+      '移除模板底板？图片本身仍在资源库里，可随时重新选择。', '移除底板',
+      { type: 'warning', confirmButtonText: '移除' })
+  } catch { return }
+  const before = snapshot()
+  tpl.value.background = bg.color ? { color: bg.color } : {}
+  pushHist(before)
+  dirty.value = true
+  await redraw()
+  ElMessage.success('已移除底板')
 }
 
 /** 挖空：把一组矩形写进 background.mask（渲染器负责真正抠掉） */
@@ -787,12 +1105,18 @@ onUnmounted(() => {
 .editor { display: flex; flex-direction: column; height: 100%; }
 .toolbar {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: none;
-  padding: 8px 14px; background: #fff; border-bottom: 1px solid var(--border);
+  padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--border);
 }
 .spacer { flex: 1; }
 .body { flex: 1; display: flex; min-height: 0; }
+/* 侧栏抓手：6px 热区，平时隐形，悬停给个提示色（宽度由内联样式控制） */
+.grip {
+  flex: none; width: 6px; cursor: col-resize; position: relative; z-index: 3;
+  background: transparent; transition: background .12s;
+}
+.grip:hover { background: var(--accent-soft); }
 .side {
-  width: 270px; flex: none; background: #fff; overflow: hidden;
+  width: 270px; flex: none; background: var(--panel); overflow: hidden;
   border-right: 1px solid var(--border);
 }
 .side.right { border-right: none; border-left: 1px solid var(--border); padding: 12px; overflow: auto; }
@@ -802,7 +1126,7 @@ onUnmounted(() => {
   padding: 6px 12px; cursor: pointer; font-size: 13px;
   border-left: 3px solid transparent;
 }
-.item:hover { background: #f5f6f8; }
+.item:hover { background: var(--panel-soft); }
 .item.active { background: var(--accent-soft); font-weight: 600; border-left-color: var(--accent); }
 .item.dragging { opacity: .4; }
 .item .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -812,8 +1136,22 @@ onUnmounted(() => {
 .ops { display: flex; gap: 6px; color: var(--muted); }
 .ops .op { font-size: 13px; cursor: pointer; line-height: 1; }
 .ops .op:hover { color: var(--accent); }
-.stage { flex: 1; overflow: auto; background: #eceef1; padding: 20px; display: flex; justify-content: center; }
-.canvas-wrap { background: #fff; box-shadow: 0 4px 18px rgba(0, 0, 0, .12); align-self: flex-start; position: relative; }
+/* 「进 AI 参考图」开关：小方块 chip，打开为绿 */
+.ai {
+  font-size: 10px; line-height: 1.5; padding: 0 4px; margin-right: 4px;
+  border: 1px solid var(--border); border-radius: 3px;
+  color: var(--muted); cursor: pointer; flex: none;
+}
+.ai.on {
+  color: var(--el-color-success); border-color: var(--el-color-success);
+  background: color-mix(in srgb, var(--el-color-success) 12%, transparent);
+}
+.chip {
+  font-size: 10px; padding: 0 4px; border-radius: 3px; margin-left: 2px;
+  background: var(--accent-soft); color: var(--accent);
+}
+.stage { flex: 1; overflow: auto; background: var(--stage); padding: 20px; display: flex; justify-content: center; }
+.canvas-wrap { background: var(--card); box-shadow: var(--shadow-card); align-self: flex-start; position: relative; }
 .bleed-hint {
   position: absolute; left: 0; right: 0; bottom: -26px;
   font-size: 11px; color: var(--muted); text-align: center;

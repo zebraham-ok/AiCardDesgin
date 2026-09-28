@@ -1,0 +1,206 @@
+桌游设计工作坊 非商业许可协议 第 1.0 版
+Boardgame Workshop Non-Commercial License, Version 1.0
+SPDX-License-Identifier: LicenseRef-BGW-NC-1.0
+
+著作权所有 (c) 2026 桌游设计工作坊项目作者（zebraham-ok，以下称"许可人"）
+原始出处：https://github.com/zebraham-ok/AiCardDesgin
+
+一句话概括：可自由用于非商业目的，必须注明出处；禁止任何商业使用，也禁止修改、
+改编后再用于商业用途。商业授权须事先获得许可人书面同意。
+
+================================================================================
+一、中文条款（以中文版本为准）
+================================================================================
+
+第 1 条 定义
+
+1.1 "本作品"：本仓库（https://github.com/zebraham-ok/AiCardDesgin）中由许可人提供的全
+    部内容，包括但不限于源代码、脚本、文档、图标与图形素材、模板、卡牌尺寸预设、设计
+    稿、提示词与生成流程配置，以及随附的示例数据。
+
+1.2 "商业使用"：任何以营利为目的，或直接、间接获取金钱或其他商业利益的使用，包括但
+    不限于：
+    (a) 销售、出租、出借、许可本作品或其衍生作品；
+    (b) 作为商品或付费服务的组成部分提供，或用于支撑付费产品、付费订阅、付费托管、
+        云服务、SaaS、API 服务；
+    (c) 随硬件、实体商品、付费课程、付费社群、付费咨询或外包交付一并提供；
+    (d) 用于企业内部以生产经营为目的的日常业务，或用于商业广告、商业推广、引流变现；
+    (e) 以本作品为素材制作面向商业发布的产品（含商业发行的桌游、卡牌、出版物及其配
+        套工具链）。
+
+1.3 "转载"：以任何方式复制、发布、上传、镜像、再分发本作品或其衍生作品，包括把全部
+    或部分内容发布到其他代码托管平台、网盘、网站、公众号、视频或其他媒介。
+
+1.4 "改编"：修改、翻译、注释、节选、组合、重构、再创作，或以本作品为基础制作衍生作
+    品（含修改后重新打包分发）的任何行为。
+
+第 2 条 授予的权利
+
+在完全遵守本协议全部条款的前提下，许可人授予你一项全球范围、免费、非独占、不可转让、
+可撤销的许可，允许你：
+
+2.1 为个人学习、研究、教学、内部试验、非营利性设计活动等非商业目的，运行、复制与使
+    用本作品；
+2.2 为非商业目的修改本作品并创作衍生作品；
+2.3 为非商业目的转载、分发本作品或你的非商业衍生作品，但须遵守第 3 条。
+
+第 3 条 限制（核心条款）
+
+3.1 禁止商业使用。不得将本作品或其任何部分用于第 1.2 条定义的商业使用。
+
+3.2 禁止改编后商业使用。不得将本作品的修改版、衍生作品、二次创作、衍生产物、
+    打包发行版用于商业使用；亦不得通过改名、重构、拆分、混入其他代码、更换界面、
+    部分抽取等任何方式规避本条。
+
+3.3 转载须注明出处。任何转载或分发（无论是原文转载还是修改后分发）都必须以显著、
+    清晰且不被遮挡的方式注明以下信息：
+    (a) 原作品名称：桌游设计工作坊（Boardgame Workshop）；
+    (b) 原始出处与作者：原作者 zebraham-ok，原始仓库地址
+        https://github.com/zebraham-ok/AiCardDesgin ；
+    (c) 许可信息：本协议名称《桌游设计工作坊 非商业许可协议 第 1.0 版》，并附本协议
+        完整文本或可访问链接；
+    (d) 修改说明：如果你修改过内容，必须显著标明"本内容基于原作修改，非原作"。
+    同时，不得删除、隐藏、模糊或篡改原作中的版权声明、作者署名与许可声明。
+
+3.4 非商业衍生作品的相同条件。你可以发布非商业衍生作品，但该衍生作品必须：
+    (a) 采用与本协议相同或更严格的许可条款；
+    (b) 完整保留第 3.3 条要求的署名、出处与许可信息；
+    (c) 不得添加任何允许商业使用本作品的条款，也不得为下游使用者提供任何商业使用的
+        便利或授权。
+    你不得就本作品或其衍生作品授予任何与本协议冲突的许可。
+
+3.5 商标与名称。本协议不授予任何商标、商号、游戏名称、美术风格标识的使用许可；不得
+    以暗示许可人背书、赞助或与本作品存在官方关联的方式使用作者名称与项目名称。
+
+3.6 第三方材料。本作品中若包含第三方素材、第三方参考材料或开源依赖（例如 npm /
+    PyPI 依赖、第三方字体、第三方图标与图片、参考资料快照等），其版权与许可归各自权
+    利人所有，按其自身许可条款使用，不在本协议授权范围之内。请你自行核验并遵守这些第
+    三方条款。本作品默认不随附第三方参考资料。
+
+第 4 条 商业授权
+
+如需商业使用（包括改编后商业使用），必须事先取得许可人的书面授权。请通过原始仓库
+https://github.com/zebraham-ok/AiCardDesgin 的 Issue 或作者公开联系方式洽谈，取得单独
+的商业许可协议后再行使用。
+
+第 5 条 终止
+
+5.1 你违反本协议任一条款时，本协议授予你的全部许可自动终止，无需另行通知。
+5.2 许可终止后，你应立即停止一切使用、复制、分发行为，并在合理期限内删除、销毁全部
+    副本及其衍生作品。
+5.3 许可终止不影响：许可人就违约行为追究责任的权利，以及第 3 条、第 6 条、第 7 条在
+    协议终止后继续有效的效力。
+
+第 6 条 免责声明
+
+本作品按"现状"提供，不附带任何明示或默示的担保，包括但不限于适销性、特定用途适用
+性、不侵权以及无错误的担保。因使用或无法使用本作品而造成的任何直接、间接、附带或
+后果性损失（含数据丢失、业务中断、第三方索赔），许可人在任何情况下均不承担责任。
+使用本作品即表示你自行承担全部风险。
+
+第 7 条 其他
+
+7.1 本协议以中文版本为准；中文与英文版本如有歧义、冲突或遗漏，以中文版本为准。
+7.2 本协议未明确授予的权利，均由许可人保留。
+7.3 本协议任一条款被认定无效或不可执行，不影响其余条款的效力。
+7.4 许可人保留在未来版本中变更许可条款的权利；已经按本版本获得的授权，仍按本版本
+    执行。
+
+--------------------------------------------------------------------------------
+推荐署名格式（转载时可直接套用）
+--------------------------------------------------------------------------------
+
+本文转载自《桌游设计工作坊》（Boardgame Workshop），作者：zebraham-ok，
+原始出处：https://github.com/zebraham-ok/AiCardDesgin ，
+采用《桌游设计工作坊 非商业许可协议 第 1.0 版》，禁止任何商业使用。
+[如为修改版，请补充：本内容基于原作修改，非原作。]
+
+================================================================================
+二、English Version (for reference only; the Chinese version prevails)
+================================================================================
+
+Boardgame Workshop Non-Commercial License, Version 1.0
+
+Copyright (c) 2026 the Boardgame Workshop authors ("Licensor").
+Original source: https://github.com/zebraham-ok/AiCardDesgin
+
+Summary: free to use for non-commercial purposes with attribution; any commercial
+use is prohibited, including commercial use of modified or adapted versions.
+Commercial licensing requires the Licensor's prior written permission.
+
+1. DEFINITIONS
+   1.1 "Work" means all content provided by the Licensor in this repository,
+       including source code, scripts, documentation, icons and graphic assets,
+       templates, card-size presets, design files, prompts and generation
+       pipelines, and bundled sample data.
+   1.2 "Commercial Use" means any use aimed at profit or any use that directly or
+       indirectly obtains money or other commercial advantage, including: selling,
+       renting or licensing the Work or its derivatives; including it in a paid
+       product or service; offering it as, or as part of, a paid hosted service,
+       SaaS or API; bundling it with hardware, physical goods, paid courses, paid
+       communities, consulting or contract deliverables; internal productive use
+       within a business; advertising or commercial promotion; and using it as
+       material for commercially released products (including commercially
+       published board games, cards, publications and their toolchains).
+   1.3 "Redistribution" means copying, publishing, uploading, mirroring or
+       otherwise distributing the Work or any derivative, in whole or in part,
+       on any platform or medium.
+   1.4 "Adaptation" means any modification, translation, annotation, excerpting,
+       combination, refactoring or re-creation that produces a derivative work
+       based on the Work, including repackaging an modified copy for distribution.
+
+2. GRANT
+   Subject to full compliance with this License, the Licensor grants you a
+   worldwide, royalty-free, non-exclusive, non-transferable, revocable licence to
+   2.1 run, copy and use the Work for personal study, research, teaching,
+       experimentation and non-profit design activities;
+   2.2 modify the Work and create derivative works for non-commercial purposes;
+   2.3 redistribute the Work or your non-commercial derivative, subject to
+       Section 3.
+
+3. RESTRICTIONS
+   3.1 No Commercial Use. You may not use the Work or any part of it for
+       Commercial Use as defined in Section 1.2.
+   3.2 No Commercial Use After Adaptation. You may not put any modified version,
+       derivative work or repackaged distribution to Commercial Use, and you may
+       not circumvent this by renaming, refactoring, splitting, merging with other
+       code, changing the interface or extracting parts.
+   3.3 Attribution on Redistribution. Any redistribution, whether verbatim or
+       modified, must prominently and clearly display: (a) the title
+       "Boardgame Workshop"; (b) the original author zebraham-ok and the original
+       repository URL https://github.com/zebraham-ok/AiCardDesgin; (c) the name of
+       this License together with its full text or an accessible link; and
+       (d) if modified, a prominent statement that the content has been changed
+       and is not the original. Copyright notices, author credits and licence
+       notices must not be removed, hidden, obscured or altered.
+   3.4 Same Terms for Non-Commercial Derivatives. A derivative work you distribute
+       must be licensed under this License or stricter terms, must keep all
+       attribution required by Section 3.3, and must not add any term that permits
+       commercial use of the Work or makes such use easier for downstream users.
+   3.5 Trademarks. No trademark, trade-name or game-name rights are granted, and
+       you may not imply endorsement or official affiliation with the Licensor.
+   3.6 Third-Party Materials. Third-party assets, third-party reference materials
+       and open-source dependencies remain under their own licences and are not
+       covered by this License. You are responsible for complying with them.
+
+4. COMMERCIAL LICENSING
+   Commercial Use, including Commercial Use of adaptations, requires the
+   Licensor's prior written permission, obtained via the original repository.
+
+5. TERMINATION
+   Your rights under this License terminate automatically upon any breach. You
+   must then stop all use and delete all copies and derivatives. Sections 3, 6
+   and 7 survive termination.
+
+6. DISCLAIMER OF WARRANTY
+   The Work is provided "AS IS", without warranty of any kind, express or
+   implied, including merchantability, fitness for a particular purpose,
+   non-infringement and freedom from errors. In no event shall the Licensor be
+   liable for any direct, indirect, incidental or consequential damages arising
+   from the use of, or inability to use, the Work.
+
+7. MISCELLANEOUS
+   The Chinese version of this License prevails. All rights not expressly granted
+   are reserved. If any provision is held unenforceable, the remaining provisions
+   remain in effect. The Licensor may publish new versions of this License;
+   grants already made under this version remain governed by this version.

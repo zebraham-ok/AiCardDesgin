@@ -59,6 +59,12 @@ class Layer(BaseModel):
     name: str = "图层"
     locked: bool = True
     visible: bool = True
+    # 渲染顺序（小 → 先画 → 在下层）。None = 老数据未迁移，渲染器按数组下标补。
+    # 字段用 FieldDef.order 当同一个 z，两者一起排序绘制。
+    z: Optional[int] = None
+    # 是否画进「给 AI 的布局参考图」（以及提示词里点名）。
+    # None = 默认 **False**：图层多是边框/色块，进了参考图会被模型模仿成装饰线条。
+    aiRef: Optional[bool] = None
     rect: List[float] = [0, 0, 100, 100]   # [x, y, w, h]
     fill: Optional[str] = None
     stroke: Optional[str] = None
@@ -82,12 +88,43 @@ class Constraint(BaseModel):
     default: Any = None
 
 
+class Backdrop(BaseModel):
+    """字段衬底：跟着字段走的那块底板（描述区面板、卡图外框…）。
+
+    刻意**不做成独立图层对象**，而是由「字段 rect + pad」现算出来的矩形：
+      * 移动/缩放字段时衬底自动跟随 —— 不需要任何同步代码，也不可能被拖歪；
+      * 渲染时永远紧贴字段的前一层或后一层，不参与全局 z 排序，不会出现
+        "面板和文字各自跑" 的状态（这正是手动画个矩形当面板的痛点）。
+    需要横跨多个字段的装饰（丝带、角花、水印）仍用独立图层。
+    """
+    enabled: bool = False
+    # 内外扩边距 [上, 右, 下, 左]
+    pad: List[float] = [8, 10, 8, 10]
+    # 默认半透明白：压暗底板的材质以保证文字可读（透明度靠 opacity 调，
+    # 不靠颜色的 alpha —— 两个 alpha 相乘会让人算不明白）
+    fill: Optional[str] = "#ffffff"
+    stroke: Optional[str] = None
+    strokeWidth: int = 0
+    radius: int = 8
+    opacity: float = 0.8
+    placement: Literal["behind", "front"] = "behind"
+
+
 class FieldDef(BaseModel):
     """字段 = 可随卡牌变化的东西。binding 决定卡牌侧能否编辑。"""
     id: str = Field(default_factory=lambda: new_id("fd"))
     key: str                                # 唯一 key，导入映射靠它
     label: str
+    backdrop: Optional[Backdrop] = None      # 可选衬底（见 Backdrop）
+    # 是否画进「给 AI 的布局参考图」+ 提示词点名。
+    # None = 默认「隐形定位框不进、普通字段进」（= 改造前的行为）
+    aiRef: Optional[bool] = None
+    # `"textarea"` 是**历史别名**，等价于 `kind="text" + multiline=True`：
+    # 渲染/统计/AI 侧两者从来没有区别（同一套 Textbox + 自动换行），
+    # 唯一差异只是卡牌页给单行输入框还是多行输入框 —— 所以改用 `multiline` 表达，
+    # 编辑器里也不再暴露 textarea。保留这个别名只为老模板/老项目包不报错。
     kind: Literal["text", "textarea", "number", "enum", "image", "icon"] = "text"
+    multiline: Optional[bool] = None      # None = 由 kind 推断（textarea → True）
     binding: Literal["editable", "fixed"] = "editable"
     rect: List[float] = [0, 0, 100, 40]
     style: StyleSpec = Field(default_factory=StyleSpec)

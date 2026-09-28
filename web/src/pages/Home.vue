@@ -170,7 +170,7 @@ onMounted(async () => {
   cursor: pointer;
   transition: box-shadow .15s, transform .15s;
 }
-.proj-card:hover { box-shadow: 0 6px 20px rgba(0, 0, 0, .08); transform: translateY(-2px); }
+.proj-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
 
 .thumb {
   height: 110px; background: var(--accent-soft);

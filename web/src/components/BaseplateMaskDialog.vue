@@ -195,17 +195,18 @@ function apply() {
 .wrap { display: flex; gap: 16px; }
 .board {
   position: relative; flex: none; overflow: hidden; cursor: crosshair;
-  background: #fff; border: 1px solid var(--border); border-radius: 6px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, .12); touch-action: none;
+  background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: var(--shadow-card); touch-action: none;
 }
 .base { position: absolute; user-select: none; pointer-events: none; }
+/* 颜色走 Element Plus 的语义变量（自带暗色主题覆盖），红=危险/删除、蓝=进行中 */
 .hole {
   position: absolute; background: rgba(229, 67, 74, .35);
-  border: 1px dashed #e5434a; box-sizing: border-box;
+  border: 1px dashed var(--el-color-danger); box-sizing: border-box;
 }
 .hole .del {
   position: absolute; right: -1px; top: -1px; width: 16px; height: 16px;
-  background: #e5434a; color: #fff; font-size: 12px; line-height: 16px;
+  background: var(--el-color-danger); color: #fff; font-size: 12px; line-height: 16px;
   text-align: center; cursor: pointer; border-radius: 0 0 0 4px;
 }
 .hole .idx {
@@ -214,7 +215,7 @@ function apply() {
 }
 .rubber {
   position: absolute; background: rgba(64, 158, 255, .25);
-  border: 1px dashed #409eff; box-sizing: border-box;
+  border: 1px dashed var(--el-color-primary); box-sizing: border-box;
 }
 .side { flex: 1; min-width: 0; font-size: 12px; }
 .tip { line-height: 1.7; margin-bottom: 6px; }

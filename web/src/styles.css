@@ -1,12 +1,58 @@
+/* ============================================================
+   主题令牌
+   - 亮色：:root
+   - 暗色：html.dark（由 useTheme.ts 切换，Element Plus 暗色变量同样挂在 .dark 上）
+   - --card 在两种主题下都是白色：它代表卡牌纸张本身，不是界面底色
+   ============================================================ */
 :root {
   --bg: #f6f7f9;
   --panel: #ffffff;
+  --panel-soft: #f5f6f8;
+  --row-line: #f2f3f5;
+  --stage: #eceef1;
+  --card: #ffffff;
   --border: #e3e6eb;
   --text: #1f2329;
   --muted: #8a9099;
   --accent: #8b5a2b;
   --accent-soft: #f3e6cf;
+  --fill-soft: #f6f7f9;
+  --warn-bg: #fdf6ec;
+  --warn-border: #faecd8;
+  --warn-text: #e6a23c;
+  --info-bg: #f4f8ff;
+  --info-border: #d6e4ff;
+  --info-text: #4a5568;
+  --chart-text: #6b7280;
+  --chart-line: #e3e6eb;
+  --shadow-card: 0 4px 18px rgba(0, 0, 0, .12);
+  --shadow-hover: 0 6px 20px rgba(0, 0, 0, .08);
   --radius: 10px;
+}
+
+html.dark {
+  --bg: #15171c;
+  --panel: #1e2128;
+  --panel-soft: #272b34;
+  --row-line: #272b34;
+  --stage: #0f1115;
+  --card: #ffffff;
+  --border: #333844;
+  --text: #e5e8ee;
+  --muted: #8b929d;
+  --accent: #c99a5b;
+  --accent-soft: #3a2f1f;
+  --fill-soft: #272b34;
+  --warn-bg: #2e2517;
+  --warn-border: #4b3c20;
+  --warn-text: #e8b45c;
+  --info-bg: #1b2534;
+  --info-border: #2d3b55;
+  --info-text: #a9bcd4;
+  --chart-text: #a3abb7;
+  --chart-line: #333844;
+  --shadow-card: 0 4px 18px rgba(0, 0, 0, .5);
+  --shadow-hover: 0 6px 20px rgba(0, 0, 0, .45);
 }
 
 * { box-sizing: border-box; }

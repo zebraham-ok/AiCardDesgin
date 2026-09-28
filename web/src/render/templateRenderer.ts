@@ -292,6 +292,39 @@ function makeGuideBox(kind: string, id: string, name: string, box: number[],
   return [r, tag]
 }
 
+/**
+ * 编辑器专用的「文字效果预览」：拿字段的**显示名**，按该字段自己的
+ * fontFamily / fontSize / 字重 / 颜色 / 对齐 / 行高 / 描边 渲染一份。
+ *
+ * 没有它的话，模板编辑器里（线框模式）只有虚线框和标签，"我调的字号和字体
+ * 到底长什么样"完全看不到。`data.kind` 仍是 `field`，所以点它、拖它的行为
+ * 和真实字段一致（拖完写回的也是这个字段的 rect）。
+ */
+function makeFieldPreview(f: any, box: number[]) {
+  // 固定值字段就展示它真正的值（那才是印出来的东西），可编辑字段用显示名占位
+  const isFixed = f.binding === 'fixed' && f.value != null && f.value !== ''
+  const text = isFixed ? String(f.value) : (f.label || f.key || '字段')
+  // **永远不可交互**：它是字段框的"附属显示"，选中/拖动/缩放都只认那个框
+  const ghost = makeText(text, box, f.style, false)
+  ghost.data = { kind: 'field', id: f.id, key: f.key, content: true, preview: true }
+  return ghost
+}
+
+/**
+ * 非线框模式下字段的「手柄」：一个几乎全透明的可交互矩形，
+ * 让字段照样点得到、拖得动（内容本身是不可交互的）。
+ */
+function makeHitBox(f: any, box: number[]) {
+  const [x, y, w, h] = box
+  const r = new Rect({
+    left: x, top: y, width: w, height: h,
+    fill: 'rgba(0,0,0,0.001)', stroke: undefined,
+    selectable: true, evented: true
+  })
+  r.data = { kind: 'field', id: f.id, key: f.key, hit: true }
+  return r
+}
+
 /** 字段的"线框"表现：虚线矩形 + 字段名标签 */
 function makeWireframe(f: any, box?: number[]) {
   const [x, y, w, h] = box || f.rect
@@ -307,6 +340,48 @@ function makeWireframe(f: any, box?: number[]) {
 }
 
 /**
+ * 统一 z 序（G35）：底板 / 图层 / 字段合成**一条**绘制序列，按 z 从小到大画。
+ *
+ * 老模板没有 `z`（layer）或 `order` 与图层打架（field）时，按「底板 → 所有图层 →
+ * 所有字段」编号 —— 与改造前的绘制顺序逐像素一致，向后兼容；用户一旦拖动排序，
+ * 值就显式落盘，不再走这条推断。
+ */
+export function normalizeZ(tpl: any) {
+  const layers: any[] = tpl?.layers ?? []
+  const fields: any[] = tpl?.fields ?? []
+  const missing = (v: any) => v === undefined || v === null
+  if (layers.length && layers.every((l: any) => missing(l.z))) {
+    layers.forEach((l: any, i: number) => { l.z = i })
+    fields.forEach((f: any, j: number) => { f.order = layers.length + j })
+  }
+  layers.forEach((l: any, i: number) => { if (missing(l.z)) l.z = i })
+  fields.forEach((f: any, j: number) => { if (missing(f.order)) f.order = j })
+}
+
+/**
+ * 字段衬底：由字段 rect + pad 现算的矩形（不是独立图层对象）。
+ * 因此「移动字段衬底跟随」不需要任何同步 —— 它本来就是算出来的。
+ * 不给它 selectable：能单独拖走的话又会回到"面板和内容错位"的老问题。
+ */
+function makeBackdrop(f: any, box: number[]) {
+  const b = f?.backdrop
+  if (!b?.enabled) return null
+  const [x, y, w, h] = box
+  const [pt, pr, pb, pl] = b.pad ?? [8, 10, 8, 10]
+  const r = new Rect({
+    left: x - pl, top: y - pt, width: w + pl + pr, height: h + pt + pb,
+    fill: b.fill ?? undefined,
+    stroke: b.stroke ?? undefined,
+    strokeWidth: b.strokeWidth ?? 0,
+    rx: b.radius ?? 0, ry: b.radius ?? 0,
+    opacity: b.opacity ?? 1,
+    selectable: false, evented: false, hoverCursor: 'default'
+  })
+  r.data = { kind: 'fieldBackdrop', id: f.id }
+  return r
+}
+
+/**
  * 把模板（+可选卡牌数据）渲染到 Fabric 画布。
  */
 export async function renderTemplate(
@@ -319,13 +394,22 @@ export async function renderTemplate(
   // 模板里引用的自定义字体必须先注册，否则量出来的文本宽度/换行都是回退字体的
   await ensureFamiliesIn(tpl)
 
+  normalizeZ(tpl)
+
   canvas.clear()
   canvas.backgroundColor = tpl.background?.color || '#ffffff'
 
   // 所有内容坐标 = 设计坐标 + 出血偏移
   const off = (r: number[]) => [r[0] + B, r[1] + B, r[2], r[3]] as number[]
 
-  const objs: any[] = []
+  // 带 z 的收集器：两个循环体不用整体改写，只把开头的 curZ 设对即可。
+  // 注意它**不是数组** —— 结尾必须用 zed 而不是 objs（曾把 objs 直接 add 进画布
+  // 导致整张画布空白：fabric 收到一个 {push} 会抛错，而 rAF 回调里的异常没人接）。
+  const zed: { z: number, o: any }[] = []
+  let curZ = 0
+  const objs = {
+    push: (...items: any[]) => { for (const o of items) zed.push({ z: curZ, o }) }
+  }
 
   // ---- 背景底板 ----
   const bgId = tpl.background?.assetId
@@ -333,12 +417,14 @@ export async function renderTemplate(
     try {
       const bg = await makeBackground(tpl, resolveAsset(bgId), CW, CH, B)
       bg.data = { kind: 'background', id: bgId }
+      curZ = Number(tpl.background?.z ?? -1)     // 底板默认最底（比所有元素都小）
       objs.push(bg)
     } catch { /* 底板缺失时退回纯色 */ }
   }
 
   // ---- 固定图层 ----
   for (const l of tpl.layers ?? []) {
+    curZ = Number(l.z ?? 0)                 // 这一层（以及它下面推入的对象）的 z
     if (l.visible === false) continue
     const [x, y, w, h] = off(l.rect)
     if (l.guide) {
@@ -380,6 +466,7 @@ export async function renderTemplate(
 
   // ---- 字段 ----
   for (const f of tpl.fields ?? []) {
+    curZ = Number(f.order ?? 0)             // 字段与图层共用同一条 z 轴
     const raw = f.binding === 'fixed' ? f.value : card?.fields?.[f.key]
     const [x, y, w, h] = off(f.rect)
 
@@ -390,25 +477,47 @@ export async function renderTemplate(
       continue
     }
 
+    /**
+     * 编辑器里，一个字段只有**一个可交互对象**：「手柄」。
+     * 线框模式的手柄是虚线框（原来就有），非线框模式是一个透明框 ——
+     * 这样"点得到、拖得动"的永远只有字段框，内容只是挂在上面的显示。
+     *
+     * 为什么必须这样：内容和框各自可交互时，拖一下就把文字和框分开、甚至把
+     * 文字拉变形（用户实测：拖出满屏叠字）。导出/卡牌页不涉及。
+     */
+    if (editor) objs.push(wireframe
+      ? makeWireframe(f, [x, y, w, h])
+      : makeHitBox(f, [x, y, w, h]))
+
     if (wireframe) {
-      objs.push(makeWireframe(f, [x, y, w, h]))
-      const tag = new Textbox(`${f.label}${f.binding === 'fixed' ? ' ·固定' : ''}`, {
-        left: x, top: Math.max(0, y - 20), width: Math.max(w, 80),
-        fontSize: 14, fill: fieldColor(f.kind),
-        backgroundColor: 'rgba(255,255,255,.85)',
-        selectable: false, evented: false, splitByGrapheme: true
-      })
-      tag.data = { kind: 'fieldTag', id: f.id }
-      objs.push(tag)
+      if (editor) {
+        // 线框模式下把「显示名」按字段自己的字体渲染一份（不可交互）——
+        // 否则在编辑器里完全看不出字号/字色/对齐的效果
+        objs.push(makeFieldPreview(f, [x, y, w, h]))
+      } else {
+        const tag = new Textbox(`${f.label}${f.binding === 'fixed' ? ' ·固定' : ''}`, {
+          left: x, top: Math.max(0, y - 20), width: Math.max(w, 80),
+          fontSize: 14, fill: fieldColor(f.kind),
+          backgroundColor: 'rgba(255,255,255,.85)',
+          selectable: false, evented: false, splitByGrapheme: true
+        })
+        tag.data = { kind: 'fieldTag', id: f.id }
+        objs.push(tag)
+      }
       continue
     }
+
+    // 编辑器里内容一律不可交互（拖动/缩放交给上面的手柄）
+    const contentInteractive = editor ? false : interactive
 
     if (f.kind === 'image' || f.kind === 'icon') {
       if (raw) {
         try {
           const im = await makeImage(resolveAsset(raw), [x, y, w, h], f.fit || 'cover',
-            f.radius || 0, interactive)
-          im.data = { kind: 'field', id: f.id, key: f.key }
+            f.radius || 0, contentInteractive)
+          im.data = editor
+            ? { kind: 'field', id: f.id, key: f.key, content: true }
+            : { kind: 'field', id: f.id, key: f.key }
           objs.push(im)
           continue
         } catch { /* 图缺失则走占位 */ }
@@ -417,21 +526,32 @@ export async function renderTemplate(
         left: x, top: y, width: w, height: h,
         fill: 'rgba(0,0,0,.05)', stroke: '#ccc', strokeWidth: 1,
         strokeDashArray: [4, 4], rx: f.radius ?? 0, ry: f.radius ?? 0,
-        selectable: interactive, evented: interactive
+        selectable: contentInteractive, evented: contentInteractive
       })
-      ph.data = { kind: 'field', id: f.id, key: f.key }
+      ph.data = editor
+        ? { kind: 'field', id: f.id, key: f.key, content: true }
+        : { kind: 'field', id: f.id, key: f.key }
       objs.push(ph)
+      if (editor) objs.push(makeFieldPreview(f, [x, y, w, h]))
       continue
     }
 
     const text = raw == null || raw === '' ? '' : String(raw)
-    if (!text) continue
-    const tb = makeText(text, [x, y, w, h], f.style, interactive)
-    tb.data = { kind: 'field', id: f.id, key: f.key }
+    if (!text) {
+      // 模板编辑器里本来就没有卡牌数据，空值也用「显示名」占位预览一下；
+      // 卡牌页与导出必须只画真实值，否则会把显示名当内容导出去。
+      if (editor) objs.push(makeFieldPreview(f, [x, y, w, h]))
+      continue
+    }
+    const tb = makeText(text, [x, y, w, h], f.style, contentInteractive)
+    tb.data = editor
+      ? { kind: 'field', id: f.id, key: f.key, content: true }
+      : { kind: 'field', id: f.id, key: f.key }
     objs.push(tb)
   }
 
   // ---- 出血框 / 裁切框 / 安全框（仅编辑器，不参与导出） ----
+  curZ = Number.MAX_SAFE_INTEGER            // 参考框永远画在最上层
   if (guides) {
     const safe = safeMargin(tpl)
     if (B > 0) {
@@ -443,9 +563,12 @@ export async function renderTemplate(
       '#2fa36b', [3, 4], 1))
   }
 
-  canvas.add(...objs)
+  // 归并成一条绘制序列：z 小 → 先画 → 在下层（同 z 保持插入顺序，sort 是稳定的）
+  zed.sort((a, b) => a.z - b.z)
+  const all = zed.map(x => x.o)
+  canvas.add(...all)
   canvas.requestRenderAll()
-  return objs
+  return all
 }
 
 /** 参考框（不可选中、不导出） */

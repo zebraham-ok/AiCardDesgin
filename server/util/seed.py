@@ -200,7 +200,7 @@ def seed_demo_project() -> None:
             FieldDef(key="element", label="元素", kind="icon",
                      rect=[62, 596, 36, 36], order=3,
                      iconLibrary="elements"),
-            FieldDef(key="desc", label="描述", kind="textarea",
+            FieldDef(key="desc", label="描述", kind="text", multiline=True,
                      rect=[60, 620, 625, 300], style=desc_style, order=4,
                      constraint=Constraint(type="string", maxLen=200,
                                            default="")),

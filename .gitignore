@@ -27,6 +27,8 @@ ENV/
 build/
 sdist/
 
+temp/
+
 # ---------- Node / 前端 ----------
 node_modules/
 web/dist/

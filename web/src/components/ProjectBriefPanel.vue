@@ -356,7 +356,7 @@ function pickKeywords() {
 .head .title { font-size: 15px; font-weight: 700; }
 .head .sub { font-size: 12px; }
 .tip {
-  background: #f5f7fa; border-radius: 6px; padding: 8px 10px;
+  background: var(--fill-soft); border-radius: 6px; padding: 8px 10px;
   font-size: 12px; line-height: 1.6; color: var(--muted); margin: 10px 0 6px;
 }
 .edit-body { padding-bottom: 4px; }
@@ -370,7 +370,7 @@ function pickKeywords() {
 .swatches { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .swatches i {
   width: 16px; height: 16px; border-radius: 4px; display: inline-block;
-  border: 1px solid rgba(0, 0, 0, .12);
+  border: 1px solid var(--border);
 }
 .foot { margin-top: 12px; }
 .foot .muted { font-size: 12px; }
@@ -380,7 +380,7 @@ function pickKeywords() {
 .name-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .brief-name { font-size: 16px; font-weight: 700; }
 .brief-empty { font-size: 12px; line-height: 1.7; color: var(--muted); padding: 10px 0 0; }
-.brief-line { margin: 10px 0 8px; font-size: 13px; color: #444; line-height: 1.6; }
+.brief-line { margin: 10px 0 8px; font-size: 13px; color: var(--text); line-height: 1.6; }
 .brief-kv {
   display: flex; flex-wrap: wrap; gap: 4px 14px;
   font-size: 12px; color: var(--text); margin-bottom: 8px;
@@ -389,7 +389,7 @@ function pickKeywords() {
 .brief-tags { display: flex; gap: 6px; flex-wrap: wrap; }
 .brief-sec { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
 .brief-sec-t { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
-.brief-text { margin: 0; font-size: 13px; line-height: 1.7; color: #444; white-space: pre-wrap; }
+.brief-text { margin: 0; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
 .brief-art-style { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .small { font-size: 11px; }
 .swatches .small { margin-left: 4px; }

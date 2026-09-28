@@ -109,6 +109,6 @@ async function create() {
 
 <style scoped>
 .opt-hint { float: right; margin-left: 12px; font-size: 11px; color: var(--muted); }
-.opt-hint.warn { color: #c45656; }
-.warn { font-size: 12px; color: #c45656; line-height: 1.5; }
+.opt-hint.warn { color: var(--warn-text); }
+.warn { font-size: 12px; color: var(--warn-text); line-height: 1.5; }
 </style>

@@ -353,7 +353,7 @@ async function onFile(e: Event) {
 
 <style scoped>
 .hint { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-.bad { color: #e5434a; font-weight: 600; }
-.issue { font-size: 12px; padding: 2px 0; color: #b26a00; }
+.bad { color: var(--el-color-danger); font-weight: 600; }
+.issue { font-size: 12px; padding: 2px 0; color: var(--warn-text); }
 .muted { color: var(--muted); }
 </style>

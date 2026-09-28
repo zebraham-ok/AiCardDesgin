@@ -47,7 +47,7 @@
 
     <div class="body">
       <!-- 左：卡列表 -->
-      <aside class="side left">
+      <aside class="side left" :style="{ width: leftW + 'px' }">
         <div style="padding: 8px">
           <el-input v-model="q" size="small" placeholder="搜索卡名" clearable @input="loadList" />
         </div>
@@ -62,6 +62,10 @@
           <div v-if="!list.length" class="empty" style="padding:20px 8px">没有卡牌</div>
         </el-scrollbar>
       </aside>
+
+      <!-- 拖动调宽（双击恢复默认） -->
+      <div class="grip" title="拖动调宽 · 双击恢复默认"
+           @pointerdown="(e: PointerEvent) => dragLeft(e, 1)" @dblclick="resetLeft()" />
 
       <!-- 中：预览 / 批量表格 -->
       <div v-if="mode === 'form'" ref="stageEl" class="stage">
@@ -84,7 +88,7 @@
                 v-if="f.kind === 'text'" v-model="row.fields[f.key]" size="small"
                 :class="{ dirty: isDirty(row, f.key) }" @input="touch(row)" />
               <el-input
-                v-else-if="f.kind === 'textarea'" v-model="row.fields[f.key]" size="small"
+                v-else-if="isMultiline(f)" v-model="row.fields[f.key]" size="small"
                 type="textarea" :rows="2" @input="touch(row)" />
               <el-input-number
                 v-else-if="f.kind === 'number'" v-model="row.fields[f.key]" size="small"
@@ -111,8 +115,12 @@
         </el-table>
       </div>
 
+      <!-- 拖动调宽（双击恢复默认）。表格模式下没有右侧栏，抓手也跟着隐藏 -->
+      <div v-if="mode === 'form'" class="grip" title="拖动调宽 · 双击恢复默认"
+           @pointerdown="(e: PointerEvent) => dragRight(e, -1)" @dblclick="resetRight()" />
+
       <!-- 右：表单 -->
-      <aside v-if="mode === 'form'" class="side right">
+      <aside v-if="mode === 'form'" class="side right" :style="{ width: rightW + 'px' }">
         <div v-if="!card" class="empty" style="padding:24px 8px">选择或新建一张卡牌</div>
         <template v-else>
           <div class="side-title">卡牌</div>
@@ -159,7 +167,7 @@
                   v-if="f.kind === 'text'"
                   v-model="card.fields[f.key]" @change="mark" />
                 <el-input
-                  v-else-if="f.kind === 'textarea'"
+                  v-else-if="isMultiline(f)"
                   v-model="card.fields[f.key]" type="textarea" :rows="4" @change="mark" />
                 <el-input-number
                   v-else-if="f.kind === 'number'"
@@ -257,6 +265,7 @@ import { api, resolveAsset } from '../api/client'
 import { renderTemplate } from '../render/templateRenderer'
 import { useUnsavedGuard } from '../composables/useUnsavedGuard'
 import { useWheelZoom } from '../composables/useWheelZoom'
+import { usePanelResize } from '../composables/usePanelResize'
 import MappingDialog from '../components/MappingDialog.vue'
 
 const route = useRoute()
@@ -267,6 +276,10 @@ const cid = computed(() => route.params.cid as string | undefined)
 const loading = ref(false)
 const dirty = ref(false)
 const zoom = ref(0.55)
+
+// 左右侧栏宽度可拖拽调节，值记在 localStorage（双击抓手恢复默认）
+const { width: leftW, onDown: dragLeft, reset: resetLeft } = usePanelResize('cardLeft', 250)
+const { width: rightW, onDown: dragRight, reset: resetRight } = usePanelResize('cardRight', 360)
 const mode = ref<'form' | 'table'>('form')
 const list = ref<any[]>([])
 const q = ref('')
@@ -287,6 +300,11 @@ const W = computed(() => tpl.value?.canvas?.w ?? 745)
 const H = computed(() => tpl.value?.canvas?.h ?? 1040)
 const editableFields = computed(() =>
   (tpl.value?.fields ?? []).filter((f: any) => f.binding !== 'fixed'))
+
+/** 字段是否要多行输入框：`multiline` 显式指定，缺省沿用历史别名 textarea */
+function isMultiline(f: any) {
+  return f.multiline === undefined || f.multiline === null ? f.kind === 'textarea' : !!f.multiline
+}
 const fixedFields = computed(() =>
   (tpl.value?.fields ?? []).filter((f: any) => f.binding === 'fixed'))
 const curTplId = computed(() => tpl.value?.id || templates.value[0]?.id || '')
@@ -449,7 +467,13 @@ async function redraw() {
   if (!canvas) return
   cancelAnimationFrame(raf)
   raf = requestAnimationFrame(async () => {
-    await renderTemplate(canvas!, tpl.value, { card: card.value, interactive: false })
+    try {
+      await renderTemplate(canvas!, tpl.value, { card: card.value, interactive: false })
+    } catch (err: any) {
+      // rAF 回调里的异常没人接 → 只会看到"画布一片白"，所以自己兜住并说出来
+      console.error('[renderTemplate]', err)
+      ElMessage.error('画布渲染失败：' + (err?.message || err))
+    }
   })
 }
 function mark() { dirty.value = true; redraw() }
@@ -633,33 +657,39 @@ onUnmounted(() => { canvas?.dispose(); canvas = null })
 .editor { display: flex; flex-direction: column; height: 100%; }
 .toolbar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: none;
-  padding: 8px 14px; background: #fff; border-bottom: 1px solid var(--border);
+  padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--border);
 }
 .spacer { flex: 1; }
 .body { flex: 1; display: flex; min-height: 0; }
-.side { width: 240px; flex: none; background: #fff; border-right: 1px solid var(--border); overflow: hidden; }
+/* 侧栏抓手：6px 热区，平时隐形，悬停给个提示色（宽度由内联样式控制） */
+.grip {
+  flex: none; width: 6px; cursor: col-resize; position: relative; z-index: 3;
+  background: transparent; transition: background .12s;
+}
+.grip:hover { background: var(--accent-soft); }
+.side { width: 240px; flex: none; background: var(--panel); border-right: 1px solid var(--border); overflow: hidden; }
 .side.right { width: 320px; border-right: none; border-left: 1px solid var(--border); padding: 12px 0; overflow: auto; }
 .side-title { font-size: 12px; font-weight: 700; color: var(--muted); padding: 4px 12px 6px; }
-.item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f2f3f5; }
-.item:hover { background: #f5f6f8; }
+.item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--row-line); }
+.item:hover { background: var(--panel-soft); }
 .item.active { background: var(--accent-soft); font-weight: 600; }
 .cname { display: block; font-size: 13px; }
-.stage { flex: 1; overflow: auto; background: #eceef1; padding: 20px; display: flex; justify-content: center; }
-.canvas-wrap { background: #fff; box-shadow: 0 4px 18px rgba(0, 0, 0, .12); align-self: flex-start; }
+.stage { flex: 1; overflow: auto; background: var(--stage); padding: 20px; display: flex; justify-content: center; }
+.canvas-wrap { background: var(--card); box-shadow: var(--shadow-card); align-self: flex-start; }
 .table-stage { flex: 1; min-width: 0; padding: 10px; overflow: hidden; }
 .dirty :deep(.el-input__wrapper) { box-shadow: 0 0 0 1px var(--accent) inset; }
 .no-fields {
-  font-size: 12px; line-height: 1.8; color: #e6a23c; background: #fdf6ec;
-  border: 1px solid #faecd8; border-radius: 6px; padding: 10px; margin-bottom: 10px;
+  font-size: 12px; line-height: 1.8; color: var(--warn-text); background: var(--warn-bg);
+  border: 1px solid var(--warn-border); border-radius: 6px; padding: 10px; margin-bottom: 10px;
 }
 .img-field { width: 100%; }
-.img-field img { width: 100%; max-height: 90px; object-fit: contain; background: #f5f6f8; }
+.img-field img { width: 100%; max-height: 90px; object-fit: contain; background: var(--panel-soft); }
 .img-field .ph { color: var(--muted); font-size: 12px; padding: 6px 0; }
 .fixed-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 12px; }
 .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; margin-top: 10px; }
 .icon-cell { text-align: center; cursor: pointer; padding: 6px; border-radius: 6px; }
-.icon-cell:hover { background: #f2f3f5; }
-.icon-cell img { width: 34px; height: 34px; color: #333; }
+.icon-cell:hover { background: var(--panel-soft); }
+.icon-cell img { width: 34px; height: 34px; color: var(--text); }
 .icon-cell span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
 .muted { color: var(--muted); }
 </style>

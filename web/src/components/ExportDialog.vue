@@ -281,7 +281,7 @@ async function run() {
 
 <style scoped>
 .hint { font-size: 12px; color: var(--muted); line-height: 1.4; }
-.hint.bad { color: #e5434a; }
+.hint.bad { color: var(--el-color-danger); }
 .hint2 { font-size: 12px; color: var(--muted); margin-left: 8px; }
 .progress { padding-top: 6px; }
 </style>
